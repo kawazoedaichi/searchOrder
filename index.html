@@ -40,7 +40,7 @@
         <h3 class="text-lg font-bold text-gray-900 flex items-center gap-2">
           <i class="fa-solid fa-bolt text-amber-500"></i> CSV自動更新・データ取り込み
         </h3>
-        <button onclick="closeCsvModal()" class="text-gray-400 hover:text-gray-600 p-1">
+        <button type="button" onclick="closeCsvModal()" class="text-gray-400 hover:text-gray-600 p-1">
           <i class="fa-solid fa-xmark text-lg"></i>
         </button>
       </div>
@@ -53,12 +53,12 @@
           </a>
         </div>
         <p class="text-gray-700">メタベース ＞ キカリ共通 ＞ バックオーダー</p>
-        <p class="text-[11px] text-gray-500 mt-1">※落としたCSVをドロップすると、外部の<strong>高精度町丁目座標辞書（coords_dict.json）</strong>と自動照合して正確な座標を付与し、GitHubへ全自動同期します。</p>
+        <p class="text-[11px] text-gray-500 mt-1">※UTF-8 / Shift-JIS 両対応。落としたCSVをドロップすると、<strong>高精度町丁目座標辞書（coords_dict.json）</strong>と自動照合して座標を付与し、GitHubへ全自動同期します。</p>
       </div>
 
       <!-- 初回トークン設定アコーディオン -->
       <div class="mt-3 border border-gray-200 rounded-xl overflow-hidden bg-gray-50">
-        <button onclick="toggleGithubSettings()" class="w-full px-4 py-2.5 text-left text-xs font-bold text-gray-700 flex items-center justify-between hover:bg-gray-100 transition">
+        <button type="button" onclick="toggleGithubSettings()" class="w-full px-4 py-2.5 text-left text-xs font-bold text-gray-700 flex items-center justify-between hover:bg-gray-100 transition">
           <span class="flex items-center gap-2"><i class="fa-brands fa-github text-sm"></i> GitHub自動更新設定（初回のみ）</span>
           <span id="tokenStatusText" class="text-[11px] font-normal text-amber-600">未設定 ▽</span>
         </button>
@@ -78,7 +78,7 @@
               <input type="text" id="ghRepoInput" value="searchOrder" class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-xs">
             </div>
           </div>
-          <button onclick="saveGithubConfig()" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition">設定を保存する</button>
+          <button type="button" onclick="saveGithubConfig()" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition">設定を保存する</button>
         </div>
       </div>
 
@@ -87,7 +87,7 @@
         <input type="file" id="fileInput" accept=".csv" multiple class="hidden" onchange="handleFilesDrop(this.files)">
         <div class="text-4xl text-blue-500 mb-2"><i class="fa-solid fa-cloud-arrow-up"></i></div>
         <p class="text-sm font-bold text-gray-800">ここにMetabaseのCSVをドロップ（またはクリックして選択）</p>
-        <p class="text-xs text-gray-500 mt-1">※国交省・街区位置参照CSVをドロップすると座標辞書に自動追加もできます</p>
+        <p class="text-xs text-gray-500 mt-1">※国交省・街区位置参照CSVをドロップすると座標辞書に自動追加＆GitHub保存されます</p>
       </div>
 
       <!-- 進捗・ステータス表示 -->
@@ -103,7 +103,7 @@
       </div>
 
       <div class="mt-6 flex justify-end gap-3">
-        <button onclick="closeCsvModal()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition">閉じる</button>
+        <button type="button" onclick="closeCsvModal()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition">閉じる</button>
       </div>
     </div>
   </div>
@@ -118,7 +118,7 @@
           <i class="fa-solid fa-location-crosshairs"></i> 町丁目高精度座標連携中
         </span>
       </div>
-      <button onclick="openCsvModal()" class="px-3 py-1.5 bg-white border border-gray-300 hover:border-blue-500 text-gray-700 hover:text-blue-600 rounded-lg text-xs font-bold shadow-sm transition flex items-center gap-1.5">
+      <button type="button" onclick="openCsvModal()" class="px-3 py-1.5 bg-white border border-gray-300 hover:border-blue-500 text-gray-700 hover:text-blue-600 rounded-lg text-xs font-bold shadow-sm transition flex items-center gap-1.5">
         <i class="fa-solid fa-bolt text-amber-500"></i> <span class="hidden sm:inline">CSV</span>自動更新
       </button>
     </div>
@@ -136,15 +136,15 @@
             <input type="text" id="unifiedInput" placeholder="住所か駅名入力（例: 新宿駅、横浜駅、神奈川県厚木市長谷1294-21）" 
                    class="w-full pl-3.5 pr-9 py-2.5 sm:py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition"
                    onkeydown="if(event.key==='Enter') executeUnifiedSearch()">
-            <button id="clearUnifiedBtn" onclick="clearUnifiedSearch()" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 hidden">
+            <button type="button" id="clearUnifiedBtn" onclick="clearUnifiedSearch()" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 hidden">
               <i class="fa-solid fa-circle-xmark text-sm"></i>
             </button>
           </div>
-          <button onclick="executeUnifiedSearch()" class="px-4 py-2.5 sm:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-sm whitespace-nowrap transition active:scale-95 flex items-center gap-1.5">
+          <button type="button" onclick="executeUnifiedSearch()" class="px-4 py-2.5 sm:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-sm whitespace-nowrap transition active:scale-95 flex items-center gap-1.5">
             <i class="fa-solid fa-magnifying-glass"></i>
             <span>検索・距離計算</span>
           </button>
-          <button onclick="clearUnifiedSearch()" class="px-2.5 py-2.5 text-gray-500 hover:text-gray-800 text-xs sm:text-sm font-semibold whitespace-nowrap">
+          <button type="button" onclick="clearUnifiedSearch()" class="px-2.5 py-2.5 text-gray-500 hover:text-gray-800 text-xs sm:text-sm font-semibold whitespace-nowrap">
             クリア
           </button>
         </div>
@@ -154,7 +154,7 @@
         </div>
       </div>
 
-      <!-- 距離スライダー（初期値：制限なし=51、検索実行時に5kmへ自動切り替え） -->
+      <!-- 距離スライダー -->
       <div class="pt-1 pb-1 px-1">
         <div class="flex items-center justify-between text-xs font-bold text-gray-700 mb-2">
           <div class="flex items-center gap-2">
@@ -190,7 +190,7 @@
           <input type="date" id="dateStart" class="bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none text-xs" onchange="applyFilters()">
           <span>〜</span>
           <input type="date" id="dateEnd" class="bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none text-xs" onchange="applyFilters()">
-          <button onclick="resetFilters()" class="ml-2 text-xs text-gray-400 hover:text-gray-700 underline">リセット</button>
+          <button type="button" onclick="resetFilters()" class="ml-2 text-xs text-gray-400 hover:text-gray-700 underline">リセット</button>
         </div>
 
         <select id="sortSelect" onchange="applyFilters()" class="bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-gray-700 focus:outline-none cursor-pointer">
@@ -201,22 +201,20 @@
 
       <!-- 関東 / 関西 振り分け & 職種ピルタブ -->
       <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
-        <!-- 地域振り分けタブ -->
         <div class="flex items-center gap-1 bg-gray-100 p-0.5 rounded-xl text-xs font-bold mr-1">
-          <button onclick="setRegionFilter('all')" id="btnRegionAll" class="px-3 py-1 rounded-lg transition bg-white text-blue-600 shadow-sm">すべて</button>
-          <button onclick="setRegionFilter('関東')" id="btnRegionKanto" class="px-3 py-1 rounded-lg transition text-gray-600 hover:text-gray-900">関東</button>
-          <button onclick="setRegionFilter('関西')" id="btnRegionKansai" class="px-3 py-1 rounded-lg transition text-gray-600 hover:text-gray-900">関西</button>
+          <button type="button" onclick="setRegionFilter('all')" id="btnRegionAll" class="px-3 py-1 rounded-lg transition bg-white text-blue-600 shadow-sm">すべて</button>
+          <button type="button" onclick="setRegionFilter('関東')" id="btnRegionKanto" class="px-3 py-1 rounded-lg transition text-gray-600 hover:text-gray-900">関東</button>
+          <button type="button" onclick="setRegionFilter('関西')" id="btnRegionKansai" class="px-3 py-1 rounded-lg transition text-gray-600 hover:text-gray-900">関西</button>
         </div>
 
-        <!-- 職種タブ -->
         <div class="flex items-center gap-1">
-          <button onclick="setJobFilter('all')" id="btnJobAll" class="px-3 py-1.5 rounded-full text-xs font-bold transition bg-blue-600 text-white shadow-sm">
+          <button type="button" onclick="setJobFilter('all')" id="btnJobAll" class="px-3 py-1.5 rounded-full text-xs font-bold transition bg-blue-600 text-white shadow-sm">
             全職種 <span id="countPillAll" class="ml-1 opacity-90 text-[11px]">0</span>
           </button>
-          <button onclick="setJobFilter('介護')" id="btnJobKaigo" class="px-3 py-1.5 rounded-full text-xs font-bold transition bg-gray-100 hover:bg-gray-200 text-gray-700">
+          <button type="button" onclick="setJobFilter('介護')" id="btnJobKaigo" class="px-3 py-1.5 rounded-full text-xs font-bold transition bg-gray-100 hover:bg-gray-200 text-gray-700">
             介護 <span id="countPillKaigo" class="ml-1 text-[11px] text-gray-500">0</span>
           </button>
-          <button onclick="setJobFilter('看護')" id="btnJobKango" class="px-3 py-1.5 rounded-full text-xs font-bold transition bg-gray-100 hover:bg-gray-200 text-gray-700">
+          <button type="button" onclick="setJobFilter('看護')" id="btnJobKango" class="px-3 py-1.5 rounded-full text-xs font-bold transition bg-gray-100 hover:bg-gray-200 text-gray-700">
             看護 <span id="countPillKango" class="ml-1 text-[11px] text-gray-500">0</span>
           </button>
         </div>
@@ -228,26 +226,26 @@
       <!-- シフトチップ -->
       <div class="flex flex-wrap items-center gap-1.5 pt-2 border-t border-gray-100">
         <span class="text-xs font-bold text-gray-500 mr-1">シフト:</span>
-        <button onclick="toggleChip(this, 'shift', '早出')" class="chip px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">早出</button>
-        <button onclick="toggleChip(this, 'shift', '日勤')" class="chip px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">日勤</button>
-        <button onclick="toggleChip(this, 'shift', '遅出')" class="chip px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">遅出</button>
-        <button onclick="toggleChip(this, 'shift', '夜勤')" class="chip px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">夜勤</button>
+        <button type="button" onclick="toggleChip(this, 'shift', '早出')" class="chip px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">早出</button>
+        <button type="button" onclick="toggleChip(this, 'shift', '日勤')" class="chip px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">日勤</button>
+        <button type="button" onclick="toggleChip(this, 'shift', '遅出')" class="chip px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">遅出</button>
+        <button type="button" onclick="toggleChip(this, 'shift', '夜勤')" class="chip px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">夜勤</button>
       </div>
 
       <!-- 施設形態チップ -->
       <div class="flex flex-wrap items-center gap-1.5 pt-1">
         <span class="text-xs font-bold text-gray-500 mr-1">施設形態:</span>
-        <button onclick="toggleChip(this, 'type', '特養')" class="chip px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">特養</button>
-        <button onclick="toggleChip(this, 'type', '老健')" class="chip px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">老健</button>
-        <button onclick="toggleChip(this, 'type', '有料')" class="chip px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">有料</button>
-        <button onclick="toggleChip(this, 'type', 'GH')" class="chip px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">GH</button>
-        <button onclick="toggleChip(this, 'type', 'サ高住')" class="chip px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">サ高住</button>
-        <button onclick="toggleChip(this, 'type', 'デイ')" class="chip px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">デイ</button>
-        <button onclick="toggleChip(this, 'type', 'ショート')" class="chip px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">ショート</button>
-        <button onclick="toggleChip(this, 'type', '訪問介護')" class="chip px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">訪問介護</button>
-        <button onclick="toggleChip(this, 'type', '訪問看護')" class="chip px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">訪問看護</button>
-        <button onclick="toggleChip(this, 'type', '病院')" class="chip px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">病院</button>
-        <button onclick="toggleChip(this, 'type', '小多機')" class="chip px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">小多機</button>
+        <button type="button" onclick="toggleChip(this, 'type', '特養')" class="chip px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">特養</button>
+        <button type="button" onclick="toggleChip(this, 'type', '老健')" class="chip px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">老健</button>
+        <button type="button" onclick="toggleChip(this, 'type', '有料')" class="chip px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">有料</button>
+        <button type="button" onclick="toggleChip(this, 'type', 'GH')" class="chip px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">GH</button>
+        <button type="button" onclick="toggleChip(this, 'type', 'サ高住')" class="chip px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">サ高住</button>
+        <button type="button" onclick="toggleChip(this, 'type', 'デイ')" class="chip px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">デイ</button>
+        <button type="button" onclick="toggleChip(this, 'type', 'ショート')" class="chip px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">ショート</button>
+        <button type="button" onclick="toggleChip(this, 'type', '訪問介護')" class="chip px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">訪問介護</button>
+        <button type="button" onclick="toggleChip(this, 'type', '訪問看護')" class="chip px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">訪問看護</button>
+        <button type="button" onclick="toggleChip(this, 'type', '病院')" class="chip px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">病院</button>
+        <button type="button" onclick="toggleChip(this, 'type', '小多機')" class="chip px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">小多機</button>
       </div>
     </div>
 
@@ -264,7 +262,7 @@
 
     <!-- もっと見るボタン -->
     <div id="loadMoreWrap" class="hidden mt-4 text-center">
-      <button onclick="showMoreJobs()" class="px-6 py-2.5 bg-white border border-gray-300 hover:border-blue-500 text-blue-600 font-bold rounded-xl text-xs shadow-sm transition">
+      <button type="button" onclick="showMoreJobs()" class="px-6 py-2.5 bg-white border border-gray-300 hover:border-blue-500 text-blue-600 font-bold rounded-xl text-xs shadow-sm transition">
         さらに表示する
       </button>
     </div>
@@ -280,15 +278,15 @@
   <footer class="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur border-t border-gray-200 shadow-lg px-4 py-3 z-40">
     <div class="max-w-4xl mx-auto flex items-center justify-between gap-2">
       <div class="flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-700">
-        <button onclick="window.scrollTo({top: 0, behavior: 'smooth'})" class="p-2 text-gray-500 hover:text-gray-800 rounded-lg hover:bg-gray-100 transition" title="トップへ戻る">
+        <button type="button" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" class="p-2 text-gray-500 hover:text-gray-800 rounded-lg hover:bg-gray-100 transition" title="トップへ戻る">
           <i class="fa-solid fa-arrow-up"></i>
         </button>
         <span id="selectedCountBadge" class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-extrabold">0件選択中</span>
-        <button onclick="deselectAll()" class="text-xs text-gray-500 hover:text-gray-800 underline ml-1">解除</button>
-        <button onclick="selectAll()" class="text-xs text-blue-600 hover:text-blue-800 underline">表示中を全選択</button>
+        <button type="button" onclick="deselectAll()" class="text-xs text-gray-500 hover:text-gray-800 underline ml-1">解除</button>
+        <button type="button" onclick="selectAll()" class="text-xs text-blue-600 hover:text-blue-800 underline">表示中を全選択</button>
       </div>
 
-      <button onclick="copySelectedJobs()" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md transition active:scale-95 flex items-center gap-2">
+      <button type="button" onclick="copySelectedJobs()" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md transition active:scale-95 flex items-center gap-2">
         <i class="fa-solid fa-copy"></i>
         <span>まとめてコピー</span>
       </button>
@@ -301,10 +299,8 @@
   </div>
 
   <script>
-    // 外部辞書 (coords_dict.json) を格納するオブジェクト
     let TOWN_COORDS_DICT = {};
 
-    // 都道府県代表座標（フォールバック用）
     const PREF_COORDS = {
       "北海道":[43.0642,141.3469],"青森県":[40.8244,140.74],"岩手県":[39.7036,141.1527],"宮城県":[38.2688,140.8721],
       "秋田県":[39.7186,140.1024],"山形県":[38.2404,140.3633],"福島県":[37.75,140.4678],"茨城県":[36.3418,140.4468],
@@ -323,7 +319,6 @@
     const KANTO_PREFS = ["東京都", "神奈川県", "埼玉県", "千葉県", "茨城県", "栃木県", "群馬県"];
     const KANSAI_PREFS = ["大阪府", "兵庫県", "京都府", "滋賀県", "奈良県", "和歌山県"];
 
-    // 漢数字・全角数字の正規化
     function normalizeTownStr(str) {
       if (!str) return "";
       let s = str.replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
@@ -333,7 +328,6 @@
       return s;
     }
 
-    // 町丁目辞書から座標を検索する関数
     function lookupCoordsFromDict(pref, city, address) {
       if (!pref || !TOWN_COORDS_DICT[pref]) return null;
       const prefObj = TOWN_COORDS_DICT[pref];
@@ -368,6 +362,7 @@
       let addrBody = (address || "").replace(pref, "").replace(cityKey, "").replace(city || "", "");
       const normAddr = normalizeTownStr(addrBody);
 
+      // 1. 完全部分一致（正規化含む）
       for (const t of townKeys) {
         const normT = normalizeTownStr(t);
         if (addrBody.includes(t) || normAddr.includes(normT)) {
@@ -375,7 +370,18 @@
         }
       }
 
-      // 町名が完全一致しない場合、その市区町村内の全町丁目の重心座標を返す
+      // 2. 「大字」「字」を除いた町名での一致
+      for (const t of townKeys) {
+        const strippedT = t.replace(/^(大字|字)/, "");
+        if (strippedT.length >= 2) {
+          const normStripped = normalizeTownStr(strippedT);
+          if (addrBody.includes(strippedT) || normAddr.includes(normStripped)) {
+            return { lat: townsObj[t][0], lng: townsObj[t][1], matchedTown: `${pref}${cityKey}${t}` };
+          }
+        }
+      }
+
+      // 3. 市区町村内の重心座標フォールバック
       if (townKeys.length > 0) {
         let sumLat = 0, sumLng = 0;
         for (const t of townKeys) {
@@ -391,11 +397,10 @@
       return null;
     }
 
-    // アプリの状態管理
     let allJobs = [];
     let filteredJobs = [];
     let selectedJobIds = new Set();
-    let baseCoords = null; // { lat, lng, label }
+    let baseCoords = null;
     let currentRegion = "all";
     let currentJobType = "all";
     let currentPref = "all";
@@ -403,7 +408,6 @@
     let activeFacilityTypes = new Set();
     let displayLimit = 100;
 
-    // 初期化処理：coords_dict.json と jobs.json を並列読み込み
     async function initApp() {
       loadGithubConfigToForm();
       try {
@@ -433,7 +437,13 @@
       applyFilters();
     }
 
-    // 案件データに座標・日付・シフト・施設形態の正規化情報を付与
+    function normalizeJobType(rawJobType) {
+      const s = String(rawJobType || "").trim();
+      if (s.includes("看護")) return "看護";
+      if (s.includes("介護")) return "介護";
+      return s || "その他";
+    }
+
     function enrichJobData(j, idx) {
       let lat = j.lat;
       let lng = j.lng;
@@ -451,21 +461,20 @@
         }
       }
 
-      // 日付パース ("11月 12, 2026, 12:02 午後" や "2026-11-12" 等に対応)
       const ts = parseJapaneseDate(j.date);
 
-      // 備考欄からシフト自動補完
       const shiftsSet = new Set(Array.isArray(j.shifts) ? j.shifts : []);
       const combinedText = `${j.facility || ""} ${j.notes || ""}`;
-      if (/早番|早出/.test(combinedText)) shiftsSet.add("早出");
+      if (/早番|早出|早[0-9０-９]/.test(combinedText)) shiftsSet.add("早出");
       if (/日勤/.test(combinedText)) shiftsSet.add("日勤");
-      if (/遅番|遅出/.test(combinedText)) shiftsSet.add("遅出");
+      if (/遅番|遅出|遅[0-9０-９]/.test(combinedText)) shiftsSet.add("遅出");
       if (/夜勤/.test(combinedText)) shiftsSet.add("夜勤");
       if (shiftsSet.size === 0) shiftsSet.add("日勤");
 
       return {
         ...j,
         id: j.id || `job_${idx}`,
+        jobType: normalizeJobType(j.jobType),
         lat,
         lng,
         matchedTown,
@@ -474,10 +483,8 @@
       };
     }
 
-    // 日本語日時文字列をミリ秒タイムスタンプに変換
     function parseJapaneseDate(dateStr) {
       if (!dateStr) return 0;
-      // 例: "11月 12, 2026, 12:02 午後"
       const m1 = dateStr.match(/(\d{1,2})月\s*(\d{1,2}),\s*(\d{4}),\s*(\d{1,2}):(\d{2})\s*(午前|午後)/);
       if (m1) {
         const month = parseInt(m1[1], 10) - 1;
@@ -490,13 +497,11 @@
         if (ampm === "午前" && hour === 12) hour = 0;
         return new Date(year, month, day, hour, min).getTime();
       }
-      // 例: "2026-11-12 12:02:00" または "2026/11/12"
       const cleaned = dateStr.replace(/\//g, "-");
       const parsed = Date.parse(cleaned);
       return isNaN(parsed) ? 0 : parsed;
     }
 
-    // 2点間の直線距離（km）をハバーサイン公式で計算
     function calcDistanceKm(lat1, lon1, lat2, lon2) {
       if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null;
       const R = 6371;
@@ -509,7 +514,6 @@
       return R * c;
     }
 
-    // 統合検索（住所 または 駅名）
     async function executeUnifiedSearch() {
       const q = document.getElementById("unifiedInput").value.trim();
       const clearBtn = document.getElementById("clearUnifiedBtn");
@@ -525,7 +529,6 @@
 
       showToast("地点を検索中...");
 
-      // 1. まずローカル辞書（都道府県・市区町村・町丁目）から検索
       for (const pref of Object.keys(TOWN_COORDS_DICT)) {
         if (q.includes(pref)) {
           const found = lookupCoordsFromDict(pref, "", q);
@@ -536,9 +539,7 @@
         }
       }
 
-      // 2. 外部ジオコーディングAPI（国土地理院API → HeartRails Express駅API → Nominatim）
       try {
-        // 駅名っぽい場合
         if (q.endsWith("駅") || !/[0-9０-９丁目番地号市町村区]/.test(q)) {
           const stName = q.replace(/駅$/, "");
           const hrRes = await fetch(`https://express.heartrails.com/api/json?method=getStations&name=${encodeURIComponent(stName)}`);
@@ -552,12 +553,11 @@
           }
         }
 
-        // 国土地理院 住所検索API
         const gsiRes = await fetch(`https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(q)}`);
         if (gsiRes.ok) {
           const gsiData = await gsiRes.json();
           if (Array.isArray(gsiData) && gsiData.length > 0) {
-            const coords = gsiData[0].geometry.coordinates; // [lng, lat]
+            const coords = gsiData[0].geometry.coordinates;
             const title = gsiData[0].properties.title || q;
             setBaseLocation(coords[1], coords[0], `${title}`);
             return;
@@ -576,7 +576,6 @@
       document.getElementById("baseCoordLabel").textContent = `基準地点: ${label}`;
       infoEl.classList.remove("hidden");
 
-      // 距離スライダーが「制限なし(51)」の場合は自動で「5km」にセットして距離順に並べる
       const rangeEl = document.getElementById("distanceRange");
       if (parseInt(rangeEl.value, 10) >= 51) {
         rangeEl.value = 5;
@@ -667,10 +666,10 @@
         return;
       }
 
-      let html = `<button onclick="setPrefFilter('all')" class="px-2.5 py-1 rounded-full font-bold transition ${currentPref === 'all' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">全エリア</button>`;
+      let html = `<button type="button" onclick="setPrefFilter('all')" class="px-2.5 py-1 rounded-full font-bold transition ${currentPref === 'all' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}">全エリア</button>`;
       prefs.forEach(p => {
         const active = currentPref === p;
-        html += `<button onclick="setPrefFilter('${p}')" class="px-2.5 py-1 rounded-full font-bold transition ${active ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">${p} <span class="opacity-75 text-[10px]">${counts[p]}</span></button>`;
+        html += `<button type="button" onclick="setPrefFilter('${p}')" class="px-2.5 py-1 rounded-full font-bold transition ${active ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}">${p} <span class="opacity-75 text-[10px]">${counts[p]}</span></button>`;
       });
       container.innerHTML = html;
     }
@@ -746,8 +745,8 @@
           if (!hasType) return false;
         }
 
-        if (startTs && job.timestamp && job.timestamp < startTs) return false;
-        if (endTs && job.timestamp && job.timestamp > endTs) return false;
+        if (startTs && (!job.timestamp || job.timestamp < startTs)) return false;
+        if (endTs && (!job.timestamp || job.timestamp > endTs)) return false;
 
         if (baseCoords && maxDist < 51) {
           if (job.distanceKm == null || job.distanceKm > maxDist) return false;
@@ -882,16 +881,8 @@
         const distStr = (baseCoords && j.lat != null && j.lng != null)
           ? `（基準地点から約${calcDistanceKm(baseCoords.lat, baseCoords.lng, j.lat, j.lng).toFixed(1)}km）`
           : "";
-        return `■ ${j.facility}【${j.jobType}】${distStr}
-住所：${j.pref}${j.city}${j.address}
-形態：${j.facilityType}
-詳細：
-${j.notes || "記載なし"}`;
-      }).join("
-
---------------------------------
-
-");
+        return `■ ${j.facility}【${j.jobType}】${distStr}\n住所：${j.pref}${j.city}${j.address}\n形態：${j.facilityType}\n詳細：\n${j.notes || "記載なし"}`;
+      }).join("\n\n--------------------------------\n\n");
 
       navigator.clipboard.writeText(text).then(() => {
         showToast(`${targets.length}件の案件をコピーしました`);
@@ -924,13 +915,16 @@ ${j.notes || "記載なし"}`;
 
     // --- CSVアップロード＆GitHub自動更新機能 ---
     function openCsvModal() {
-      document.getElementById("csvModal").style.display = "flex";
+      const modal = document.getElementById("csvModal");
+      if (modal) modal.style.display = "flex";
     }
     function closeCsvModal() {
-      document.getElementById("csvModal").style.display = "none";
+      const modal = document.getElementById("csvModal");
+      if (modal) modal.style.display = "none";
     }
     function toggleGithubSettings() {
-      document.getElementById("githubSettingsPanel").classList.toggle("hidden");
+      const panel = document.getElementById("githubSettingsPanel");
+      if (panel) panel.classList.toggle("hidden");
     }
     function saveGithubConfig() {
       const token = document.getElementById("ghTokenInput").value.trim();
@@ -946,17 +940,28 @@ ${j.notes || "記載なし"}`;
       const token = localStorage.getItem("gh_pat") || "";
       const owner = localStorage.getItem("gh_owner") || "kawazoedaichi";
       const repo = localStorage.getItem("gh_repo") || "searchOrder";
-      document.getElementById("ghTokenInput").value = token;
-      document.getElementById("ghOwnerInput").value = owner;
-      document.getElementById("ghRepoInput").value = repo;
+      const tIn = document.getElementById("ghTokenInput");
+      const oIn = document.getElementById("ghOwnerInput");
+      const rIn = document.getElementById("ghRepoInput");
+      if (tIn) tIn.value = token;
+      if (oIn) oIn.value = owner;
+      if (rIn) rIn.value = repo;
       const st = document.getElementById("tokenStatusText");
-      if (token) {
+      if (st && token) {
         st.textContent = "設定済み ✓";
         st.className = "text-[11px] font-bold text-emerald-600";
       }
     }
 
-    // ドラッグ＆ドロップ対応
+    function pickCol(row, candidates) {
+      for (const key of candidates) {
+        if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== "") {
+          return String(row[key]).trim();
+        }
+      }
+      return "";
+    }
+
     const dropZone = document.getElementById("dropZone");
     if (dropZone) {
       dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("bg-blue-100"); });
@@ -965,6 +970,27 @@ ${j.notes || "記載なし"}`;
         e.preventDefault();
         dropZone.classList.remove("bg-blue-100");
         if (e.dataTransfer.files.length) handleFilesDrop(e.dataTransfer.files);
+      });
+    }
+
+    function parseCsvWithAutoEncoding(file, callback) {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        encoding: "UTF-8",
+        complete: function(results) {
+          const sample = JSON.stringify((results.data || []).slice(0, 3));
+          if (sample.includes("\uFFFD")) {
+            Papa.parse(file, {
+              header: true,
+              skipEmptyLines: true,
+              encoding: "Shift-JIS",
+              complete: callback
+            });
+          } else {
+            callback(results);
+          }
+        }
       });
     }
 
@@ -982,96 +1008,109 @@ ${j.notes || "記載なし"}`;
       pct.textContent = "30%";
       bar.style.width = "30%";
 
-      Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        complete: async function(results) {
-          const rows = results.data;
-          if (!rows || rows.length === 0) {
-            title.textContent = "エラー: データが空です";
-            return;
-          }
+      parseCsvWithAutoEncoding(file, async function(results) {
+        const rows = results.data;
+        if (!rows || rows.length === 0) {
+          title.textContent = "エラー: データが空です";
+          return;
+        }
 
-          // 国交省位置参照CSVかMetabase案件CSVかを自動判定
-          const headers = Object.keys(rows[0]);
-          if (headers.includes("都道府県名") && headers.includes("大字町丁目名") && headers.includes("緯度")) {
-            let added = 0;
-            rows.forEach(r => {
-              const p = r["都道府県名"], c = r["市区町村名"], t = r["大字町丁目名"];
-              const la = parseFloat(r["緯度"]), ln = parseFloat(r["経度"]);
-              if (p && c && t && !isNaN(la) && !isNaN(ln)) {
-                if (!TOWN_COORDS_DICT[p]) TOWN_COORDS_DICT[p] = {};
-                if (!TOWN_COORDS_DICT[p][c]) TOWN_COORDS_DICT[p][c] = {};
-                TOWN_COORDS_DICT[p][c][t] = [la, ln];
-                added++;
-              }
-            });
-            pct.textContent = "100%";
-            bar.style.width = "100%";
-            title.textContent = "座標辞書を更新しました";
-            detail.textContent = `${added.toLocaleString()}件の町丁目座標を追加しました。`;
-            allJobs = allJobs.map((j, idx) => enrichJobData({ ...j, lat: null, lng: null }, idx));
-            applyFilters();
-            return;
-          }
+        const headers = Object.keys(rows[0]);
+        const token = localStorage.getItem("gh_pat");
 
-          // Metabase 案件CSVの変換
-          const parsedJobs = rows.map((r, idx) => {
-            const pref = r["都道府県"] || r["pref"] || "";
-            const city = r["市区町村"] || r["city"] || "";
-            const addr = r["住所"] || r["町名番地"] || r["address"] || "";
-            const facility = r["施設名"] || r["事業所名"] || r["クライアント名"] || r["facility"] || "";
-            const jobType = r["職種"] || r["案件種別"] || r["jobType"] || "介護";
-            const facilityType = r["施設形態"] || r["サービス種別"] || r["facilityType"] || "一般";
-            const notes = r["備考"] || r["詳細"] || r["メモ"] || r["notes"] || "";
-            const date = r["獲得日時"] || r["登録日時"] || r["更新日時"] || r["BO取得日時"] || r["date"] || "";
-            const coords = lookupCoordsFromDict(pref, city, addr);
-            return enrichJobData({
-              id: `job_${idx}`,
-              facility,
-              pref,
-              city,
-              address: addr,
-              jobType,
-              facilityType,
-              shifts: [],
-              notes,
-              date,
-              lat: coords ? coords.lat : null,
-              lng: coords ? coords.lng : null
-            }, idx);
+        // 国交省位置参照CSVの場合
+        if (headers.includes("都道府県名") && headers.includes("大字町丁目名") && headers.includes("緯度")) {
+          let added = 0;
+          rows.forEach(r => {
+            const p = r["都道府県名"], c = r["市区町村名"], t = r["大字町丁目名"];
+            const la = parseFloat(r["緯度"]), ln = parseFloat(r["経度"]);
+            if (p && c && t && !isNaN(la) && !isNaN(ln)) {
+              if (!TOWN_COORDS_DICT[p]) TOWN_COORDS_DICT[p] = {};
+              if (!TOWN_COORDS_DICT[p][c]) TOWN_COORDS_DICT[p][c] = {};
+              TOWN_COORDS_DICT[p][c][t] = [la, ln];
+              added++;
+            }
           });
-
-          allJobs = parsedJobs;
-          updateHeaderCounts();
-          renderPrefPills();
+          allJobs = allJobs.map((j, idx) => enrichJobData({ ...j, lat: null, lng: null }, idx));
           applyFilters();
 
-          pct.textContent = "70%";
-          bar.style.width = "70%";
-          title.textContent = `${parsedJobs.length}件を読み込みました`;
-
-          const token = localStorage.getItem("gh_pat");
           if (token) {
-            title.textContent = "GitHubへ自動反映中...";
-            await pushJobsToGithub(parsedJobs, token);
+            pct.textContent = "70%";
+            bar.style.width = "70%";
+            title.textContent = "座標辞書をGitHubへ保存中...";
+            const ok = await pushFileToGithub("coords_dict.json", TOWN_COORDS_DICT, token, "Webアプリ経由でcoords_dict.jsonを更新する");
             pct.textContent = "100%";
             bar.style.width = "100%";
-            title.textContent = "GitHubへの自動反映が完了しました！";
-            detail.textContent = `${parsedJobs.length}件の案件データ（高精度座標付き）を同期しました。`;
+            title.textContent = ok ? "座標辞書をGitHubへ保存しました！" : "座標辞書のGitHub保存に失敗しました";
+            detail.textContent = `${added.toLocaleString()}件の町丁目座標を追加しました。`;
           } else {
             pct.textContent = "100%";
             bar.style.width = "100%";
-            detail.textContent = "画面に反映しました（※GitHubにも保存する場合は上の「GitHub自動更新設定」にトークンを入力してください）。";
+            title.textContent = "座標辞書を更新しました（画面反映済み）";
+            detail.textContent = `${added.toLocaleString()}件の町丁目座標を追加しました。`;
           }
+          return;
+        }
+
+        // Metabase 案件CSVの変換
+        const parsedJobs = rows.map((r, idx) => {
+          const pref = pickCol(r, ["都道府県", "都道府県名", "pref", "prefecture"]);
+          const city = pickCol(r, ["市区町村", "市区町村名", "city"]);
+          const addr = pickCol(r, ["住所", "町名番地", "番地", "所在地", "address"]);
+          const facility = pickCol(r, ["施設名", "事業所名", "クライアント名", "法人名", "facility", "client_name"]);
+          const jobType = pickCol(r, ["職種", "案件種別", "募集職種", "jobType", "job_type"]) || "介護";
+          const facilityType = pickCol(r, ["施設形態", "サービス種別", "事業所種別", "facilityType", "facility_type"]) || "一般";
+          const notes = pickCol(r, ["備考", "詳細", "メモ", "案件詳細", "notes", "memo"]);
+          const date = pickCol(r, ["獲得日時", "登録日時", "更新日時", "BO取得日時", "作成日時", "date", "created_at"]);
+          const coords = lookupCoordsFromDict(pref, city, addr);
+          return enrichJobData({
+            id: `job_${idx}`,
+            facility,
+            pref,
+            city,
+            address: addr,
+            jobType,
+            facilityType,
+            shifts: [],
+            notes,
+            date,
+            lat: coords ? coords.lat : null,
+            lng: coords ? coords.lng : null
+          }, idx);
+        });
+
+        allJobs = parsedJobs;
+        updateHeaderCounts();
+        renderPrefPills();
+        applyFilters();
+
+        pct.textContent = "70%";
+        bar.style.width = "70%";
+        title.textContent = `${parsedJobs.length}件を読み込みました`;
+
+        if (token) {
+          title.textContent = "GitHubへ自動反映中...";
+          const ok = await pushFileToGithub("jobs.json", parsedJobs, token, "Webアプリ経由でjobs.jsonを更新する");
+          pct.textContent = "100%";
+          bar.style.width = "100%";
+          if (ok) {
+            title.textContent = "GitHubへの自動反映が完了しました！";
+            detail.textContent = `${parsedJobs.length}件の案件データ（高精度座標付き）を同期しました。`;
+          } else {
+            title.textContent = "GitHub同期エラー（画面には反映済み）";
+            detail.textContent = "トークン権限（repo）またはリポジトリ名を確認してください。";
+          }
+        } else {
+          pct.textContent = "100%";
+          bar.style.width = "100%";
+          detail.textContent = "画面に反映しました（※GitHubにも保存する場合は上の「GitHub自動更新設定」にトークンを入力してください）。";
         }
       });
     }
 
-    async function pushJobsToGithub(jobsData, token) {
+    async function pushFileToGithub(path, jsonData, token, commitPrefix) {
       const owner = localStorage.getItem("gh_owner") || "kawazoedaichi";
       const repo = localStorage.getItem("gh_repo") || "searchOrder";
-      const path = "jobs.json";
       const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
 
       try {
@@ -1081,23 +1120,30 @@ ${j.notes || "記載なし"}`;
           const info = await getRes.json();
           sha = info.sha;
         }
-        const contentStr = JSON.stringify(jobsData);
-        const encoded = btoa(unescape(encodeURIComponent(contentStr)));
+        const contentStr = JSON.stringify(jsonData);
+        const bytes = new TextEncoder().encode(contentStr);
+        let binary = "";
+        for (let i = 0; i < bytes.byteLength; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        const encoded = btoa(binary);
         const today = new Date().toISOString().slice(0, 10).replace(/-/g, "/");
-        await fetch(apiUrl, {
+        const putRes = await fetch(apiUrl, {
           method: "PUT",
           headers: {
             Authorization: `token ${token}`,
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            message: `Webアプリ経由でjobs.jsonを更新する (${today})`,
+            message: `${commitPrefix} (${today})`,
             content: encoded,
             sha: sha || undefined
           })
         });
+        return putRes.ok;
       } catch (e) {
         console.error("GitHub保存エラー:", e);
+        return false;
       }
     }
 
