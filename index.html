@@ -419,6 +419,89 @@
     let activeFacilityTypes = new Set();
     let displayLimit = 100;
 
+    // 施設名＋住所が同じ案件を重複統合（シフト・雇用形態・備考をマージし、BO取得日時は最新を採用）
+    function normalizeKeyStr(str) {
+      return String(str || "")
+        .replace(/[\s　]+/g, "")
+        .replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+        .replace(/[‐‑‒–—―ー−]/g, "-")
+        .replace(/ヶ/g, "ケ");
+    }
+
+    function mergeDuplicateJobs(jobs) {
+      const map = new Map();
+      jobs.forEach((job) => {
+        const normFacility = normalizeKeyStr(job.facility);
+        const normAddr = normalizeKeyStr(formatFullAddress(job));
+        const key = `${normFacility}__${normAddr}`;
+
+        if (!map.has(key)) {
+          map.set(key, {
+            ...job,
+            jobTypes: job.jobType ? [job.jobType] : [],
+            empTypes: job.empType ? [job.empType] : [],
+            shifts: Array.isArray(job.shifts) ? [...job.shifts] : [],
+            notesList: job.notes && job.notes.trim() ? [job.notes.trim()] : []
+          });
+        } else {
+          const existing = map.get(key);
+
+          // BO取得日時は一番新しいものを採用
+          if ((job.timestamp || 0) > (existing.timestamp || 0)) {
+            existing.timestamp = job.timestamp;
+            existing.date = job.date;
+          }
+
+          // 座標が未設定なら補完
+          if (existing.lat == null && job.lat != null) {
+            existing.lat = job.lat;
+            existing.lng = job.lng;
+            existing.matchedTown = job.matchedTown;
+          }
+
+          // 施設形態が「一般」「施設」など汎用的なら具体的な方を採用
+          if ((!existing.facilityType || existing.facilityType === "一般") && job.facilityType && job.facilityType !== "一般") {
+            existing.facilityType = job.facilityType;
+          }
+
+          // 職種マージ
+          if (job.jobType && !existing.jobTypes.includes(job.jobType)) {
+            existing.jobTypes.push(job.jobType);
+          }
+
+          // 雇用形態マージ
+          if (job.empType && !existing.empTypes.includes(job.empType)) {
+            existing.empTypes.push(job.empType);
+          }
+
+          // シフトマージ
+          (job.shifts || []).forEach(s => {
+            if (s && !existing.shifts.includes(s)) existing.shifts.push(s);
+          });
+
+          // 備考・詳細マージ（同一文言は重複除去）
+          const nTrim = (job.notes || "").trim();
+          if (nTrim && !existing.notesList.includes(nTrim)) {
+            existing.notesList.push(nTrim);
+          }
+        }
+      });
+
+      return Array.from(map.values()).map((item, idx) => {
+        const mergedNotes = item.notesList.join("\n---\n");
+        const primaryJobType = item.jobTypes.join("・") || item.jobType || "介護";
+        const primaryEmpType = item.empTypes[0] || item.empType || "派遣";
+        const { notesList, ...rest } = item;
+        return {
+          ...rest,
+          id: `job_${idx}`,
+          jobType: primaryJobType,
+          empType: primaryEmpType,
+          notes: mergedNotes
+        };
+      });
+    }
+
     async function initApp() {
       loadGithubConfigToForm();
       try {
@@ -437,7 +520,8 @@
 
         if (jobsRes && jobsRes.ok) {
           const rawJobs = await jobsRes.json();
-          allJobs = rawJobs.map((j, idx) => enrichJobData(j, idx));
+          const enriched = rawJobs.map((j, idx) => enrichJobData(j, idx));
+          allJobs = mergeDuplicateJobs(enriched);
         }
       } catch (e) {
         console.error("データ読込エラー:", e);
@@ -755,8 +839,8 @@
     function updateHeaderCounts() {
       document.getElementById("totalHeaderCount").textContent = `${allJobs.length.toLocaleString()}件`;
       document.getElementById("countPillAll").textContent = allJobs.length;
-      document.getElementById("countPillKaigo").textContent = allJobs.filter(j => j.jobType === "介護").length;
-      document.getElementById("countPillKango").textContent = allJobs.filter(j => j.jobType === "看護").length;
+      document.getElementById("countPillKaigo").textContent = allJobs.filter(j => (j.jobTypes || [j.jobType]).includes("介護")).length;
+      document.getElementById("countPillKango").textContent = allJobs.filter(j => (j.jobTypes || [j.jobType]).includes("看護")).length;
     }
 
     function applyFilters() {
@@ -779,10 +863,14 @@
         if (currentRegion === "関東" && !KANTO_PREFS.includes(job.pref)) return false;
         if (currentRegion === "関西" && !KANSAI_PREFS.includes(job.pref)) return false;
         if (currentPref !== "all" && job.pref !== currentPref) return false;
-        if (currentJobType !== "all" && job.jobType !== currentJobType) return false;
+        if (currentJobType !== "all") {
+          const jTypes = job.jobTypes || [job.jobType];
+          if (!jTypes.includes(currentJobType)) return false;
+        }
 
         if (activeEmpTypes.size > 0) {
-          if (!activeEmpTypes.has(job.empType)) return false;
+          const eTypes = job.empTypes || [job.empType];
+          if (!eTypes.some(et => activeEmpTypes.has(et))) return false;
         }
 
         if (activeShifts.size > 0) {
@@ -860,9 +948,13 @@
           `<span class="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-[11px] font-bold">${escapeHtml(s)}</span>`
         ).join("");
 
-        const empBadgeColor = job.empType === "紹介予定派遣"
-          ? "bg-purple-50 text-purple-700 border-purple-200"
-          : (job.empType === "紹介" ? "bg-orange-50 text-orange-700 border-orange-200" : "bg-teal-50 text-teal-700 border-teal-200");
+        const eList = (job.empTypes && job.empTypes.length > 0) ? job.empTypes : [job.empType || "派遣"];
+        const empBadgesHtml = eList.map(et => {
+          const c = et === "紹介予定派遣"
+            ? "bg-purple-50 text-purple-700 border-purple-200"
+            : (et === "紹介" ? "bg-orange-50 text-orange-700 border-orange-200" : "bg-teal-50 text-teal-700 border-teal-200");
+          return `<span class="px-2 py-0.5 rounded-md border text-[11px] font-extrabold ${c}">${escapeHtml(et)}</span>`;
+        }).join("");
 
         return `
           <div onclick="toggleJobSelection('${job.id}')" class="bg-white rounded-2xl p-4 shadow-sm border transition cursor-pointer ${isChecked ? 'border-blue-500 ring-2 ring-blue-100 bg-blue-50/20' : 'border-gray-200/80 hover:border-blue-300'}">
@@ -873,7 +965,7 @@
               <div class="flex-1 min-w-0">
                 <div class="flex flex-wrap items-center gap-1.5 mb-1.5">
                   <span class="px-2 py-0.5 rounded-md border text-[11px] font-extrabold ${jobBadgeColor}">${escapeHtml(job.jobType || "その他")}</span>
-                  <span class="px-2 py-0.5 rounded-md border text-[11px] font-extrabold ${empBadgeColor}">${escapeHtml(job.empType || "派遣")}</span>
+                  ${empBadgesHtml}
                   <span class="px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 text-[11px] font-semibold">${escapeHtml(job.facilityType || "施設")}</span>
                   ${distBadge}
                   <span class="ml-auto text-[11px] text-gray-400 font-medium">${escapeHtml(job.date || "")}</span>
@@ -881,7 +973,7 @@
                 <h2 class="text-sm sm:text-base font-extrabold text-gray-900 leading-snug mb-1">${escapeHtml(job.facility || "施設名未設定")}</h2>
                 <div class="text-xs text-gray-600 flex items-center gap-1.5 mb-2">
                   <i class="fa-solid fa-location-dot text-gray-400"></i>
-                  <span>${escapeHtml((job.pref || "") + (job.city || "") + (job.address || ""))}</span>
+                  <span>${escapeHtml(formatFullAddress(job))}</span>
                 </div>
                 <div class="flex flex-wrap items-center gap-1 mb-2">
                   ${shiftBadges}
@@ -892,6 +984,18 @@
           </div>
         `;
       }).join("");
+    }
+
+    function formatFullAddress(j) {
+      const pref = j.pref || "";
+      const city = j.city || "";
+      let addr = j.address || "";
+      if (pref && addr.startsWith(pref)) addr = addr.slice(pref.length);
+      if (city && addr.startsWith(city)) addr = addr.slice(city.length);
+      const normCity = city.replace(/ヶ/g, "ケ");
+      const normAddr = addr.replace(/ヶ/g, "ケ");
+      if (normCity && normAddr.startsWith(normCity)) addr = addr.slice(normCity.length);
+      return `${pref}${city}${addr}`;
     }
 
     function escapeHtml(str) {
@@ -1122,11 +1226,12 @@
         const headers = Object.keys(rows[0]);
         const token = localStorage.getItem("gh_pat");
 
-        // 国交省位置参照CSVの場合
-        if (headers.includes("都道府県名") && headers.includes("大字町丁目名") && headers.includes("緯度")) {
+        // 国交省位置参照CSVの場合（大字町丁目名 / 大字・丁目名 両対応）
+        const mlitTownCol = headers.includes("大字町丁目名") ? "大字町丁目名" : (headers.includes("大字・丁目名") ? "大字・丁目名" : "");
+        if (headers.includes("都道府県名") && mlitTownCol && headers.includes("緯度")) {
           let added = 0;
           rows.forEach(r => {
-            const p = r["都道府県名"], c = r["市区町村名"], t = r["大字町丁目名"];
+            const p = r["都道府県名"], c = r["市区町村名"], t = r[mlitTownCol];
             const la = parseFloat(r["緯度"]), ln = parseFloat(r["経度"]);
             if (p && c && t && !isNaN(la) && !isNaN(ln)) {
               if (!TOWN_COORDS_DICT[p]) TOWN_COORDS_DICT[p] = {};
@@ -1161,7 +1266,26 @@
         const parsedJobs = rows.map((r, idx) => {
           const pref = pickCol(r, ["都道府県", "都道府県名", "pref", "prefecture"]);
           const city = pickCol(r, ["市区町村", "市区町村名", "city"]);
-          const addr = pickCol(r, ["住所", "町名番地", "番地", "所在地", "address"]);
+          const addrParts = [
+            pickCol(r, ["町域・番地・建物名", "町域・番地", "住所", "所在地", "住所1", "住所１", "町名番地", "町丁目番地", "丁番地", "address", "address1"]),
+            pickCol(r, ["町域", "町名", "町丁目", "大字町丁目", "大字", "town"]),
+            pickCol(r, ["番地", "番地以降", "住所2", "住所２", "建物名", "address2"])
+          ].filter(Boolean);
+          // 重複除去しつつ結合
+          let addr = "";
+          for (const part of addrParts) {
+            if (!addr.includes(part)) addr += part;
+          }
+          // それでも空の場合、ヘッダー名に「住所」「町」「番地」を含む列をすべて結合
+          if (!addr) {
+            for (const h of headers) {
+              if (h === "都道府県" || h === "都道府県名" || h === "市区町村" || h === "市区町村名") continue;
+              if (/住所|町名|町域|町丁目|番地|所在地|address/i.test(h)) {
+                const v = String(r[h] || "").trim();
+                if (v && !addr.includes(v)) addr += v;
+              }
+            }
+          }
           const facility = pickCol(r, ["施設名", "事業所名", "クライアント名", "法人名", "facility", "client_name"]);
           const jobType = pickCol(r, ["職種", "案件種別", "募集職種", "jobType", "job_type"]) || "介護";
           const facilityType = pickCol(r, ["施設形態", "サービス種別", "事業所種別", "facilityType", "facility_type"]) || "一般";
@@ -1169,6 +1293,8 @@
           if (!empType && kColKey && r[kColKey] !== undefined) {
             empType = String(r[kColKey]).trim();
           }
+          const shiftsRaw = pickCol(r, ["シフト", "勤務シフト", "時間帯", "shifts"]);
+          const initialShifts = shiftsRaw ? shiftsRaw.split(/[,、・\/\s]+/).filter(Boolean) : [];
           const notes = pickCol(r, ["備考", "詳細", "メモ", "案件詳細", "notes", "memo"]);
           const date = pickCol(r, ["獲得日時", "登録日時", "更新日時", "BO取得日時", "作成日時", "date", "created_at"]);
           const coords = lookupCoordsFromDict(pref, city, addr);
@@ -1181,7 +1307,7 @@
             empType,
             jobType,
             facilityType,
-            shifts: [],
+            shifts: initialShifts,
             notes,
             date,
             lat: coords ? coords.lat : null,
@@ -1189,23 +1315,24 @@
           }, idx);
         });
 
-        allJobs = parsedJobs;
+        const mergedJobs = mergeDuplicateJobs(parsedJobs);
+        allJobs = mergedJobs;
         updateHeaderCounts();
         renderPrefPills();
         applyFilters();
 
         pct.textContent = "70%";
         bar.style.width = "70%";
-        title.textContent = `${parsedJobs.length}件を読み込みました`;
+        title.textContent = `${mergedJobs.length}件に統合しました（元データ ${parsedJobs.length}件）`;
 
         if (token) {
           title.textContent = "GitHubへ自動反映中...";
-          const ok = await pushFileToGithub("jobs.json", parsedJobs, token, "Webアプリ経由でjobs.jsonを更新する");
+          const ok = await pushFileToGithub("jobs.json", mergedJobs, token, "Webアプリ経由でjobs.jsonを更新する");
           pct.textContent = "100%";
           bar.style.width = "100%";
           if (ok) {
             title.textContent = "GitHubへの自動反映が完了しました！";
-            detail.textContent = `${parsedJobs.length}件の案件データ（高精度座標付き）を同期しました。`;
+            detail.textContent = `重複統合後の${mergedJobs.length}件（元${parsedJobs.length}件・高精度座標付き）を同期しました。`;
           } else {
             title.textContent = "GitHub同期エラー（画面には反映済み）";
             detail.textContent = "トークン権限（repo）またはリポジトリ名を確認してください。";
