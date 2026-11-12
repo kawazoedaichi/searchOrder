@@ -436,8 +436,11 @@
         const normAddr = normalizeKeyStr(formatFullAddress(job));
         const normJobType = normalizeJobType(job.jobType);
         const normEmpType = normalizeEmpType(job.empType, "");
-        // 施設名 + 住所 + 職種(介護/看護) + 雇用形態(派遣/紹介予定派遣/紹介) の4要素がすべて一致するものだけを統合
+        // 施設名 + 住所 + 職種(介護/看護) + 雇用形態(派遣/紹介予定派遣/紹介) の4要素がすべて一致するものだけを同一区分として扱う
         const key = `${normFacility}__${normAddr}__${normJobType}__${normEmpType}`;
+
+        // 過去に別の区分と合体していた古い備考（\n---\n区切り）が含まれる場合は、先頭（当該区分自身）のみを使用
+        const cleanRawNote = String(job.notes || "").split(/\n---\n/)[0].trim();
 
         if (!map.has(key)) {
           map.set(key, {
@@ -446,15 +449,26 @@
             empType: normEmpType,
             empTypes: [normEmpType],
             shifts: Array.isArray(job.shifts) ? [...job.shifts] : [],
-            notesList: job.notes && job.notes.trim() ? [job.notes.trim()] : []
+            notes: cleanRawNote,
+            notesList: cleanRawNote ? [cleanRawNote] : []
           });
         } else {
           const existing = map.get(key);
 
-          // 同じ区分（例：同じ「看護・派遣」同士）の中で、一番新しいBO取得日時を採用
+          // 同じ区分の中で、より新しいBO取得日時のレコードが来たら、日時と備考を最新のものに更新する
           if ((job.timestamp || 0) > (existing.timestamp || 0)) {
             existing.timestamp = job.timestamp;
             existing.date = job.date;
+            if (cleanRawNote) {
+              existing.notes = cleanRawNote;
+              existing.notesList = [cleanRawNote];
+            }
+          } else if ((job.timestamp || 0) === (existing.timestamp || 0)) {
+            // 同じBO取得日時の同一区分レコードが複数行ある場合のみ備考を重複なくマージ
+            if (cleanRawNote && !existing.notesList.includes(cleanRawNote)) {
+              existing.notesList.push(cleanRawNote);
+              existing.notes = existing.notesList.join("\n");
+            }
           }
 
           // 座標が未設定なら補完
@@ -473,22 +487,14 @@
           (job.shifts || []).forEach(s => {
             if (s && !existing.shifts.includes(s)) existing.shifts.push(s);
           });
-
-          // 備考・詳細マージ（同一文言は重複除去）
-          const nTrim = (job.notes || "").trim();
-          if (nTrim && !existing.notesList.includes(nTrim)) {
-            existing.notesList.push(nTrim);
-          }
         }
       });
 
       return Array.from(map.values()).map((item, idx) => {
-        const mergedNotes = item.notesList.join("\n---\n");
         const { notesList, ...rest } = item;
         return {
           ...rest,
-          id: `job_${idx}`,
-          notes: mergedNotes
+          id: `job_${idx}`
         };
       });
     }
@@ -1116,36 +1122,41 @@
         "その他備考"
       ];
 
-      const extractedItems = [];
-      const seen = new Set();
+      const headerMap = new Map();
+      const freeItems = [];
+      const seenFree = new Set();
 
-      // 1. 【項目名】形式のブロックを解析
+      // 1. 【項目名】形式のブロックを解析（同一項目名は1行に統合）
       if (raw.includes("【")) {
         const parts = raw.split(/(?=【[^】]+】)/);
         for (const part of parts) {
           const m = part.match(/^【([^】]+)】\s*([\s\S]*)$/);
           if (!m) continue;
           const header = m[1].trim();
-          const body = m[2].trim();
+          const body = m[2].replace(/\n---\n/g, "\n").trim();
           if (!body) continue;
 
           if (allowedHeaders.includes(header)) {
             const lines = body.split(/[\n\r]+/).map(l => sanitizeCandidatePhrase(l)).filter(Boolean);
             if (lines.length > 0) {
-              const cleanedBody = lines.join(" / ");
-              const entry = `・${header}：${cleanedBody}`;
-              if (!seen.has(entry)) {
-                seen.add(entry);
-                extractedItems.push(entry);
-              }
+              if (!headerMap.has(header)) headerMap.set(header, new Set());
+              const valSet = headerMap.get(header);
+              lines.forEach(l => valSet.add(l));
             }
           }
         }
       }
 
+      const extractedItems = [];
+      for (const h of allowedHeaders) {
+        if (headerMap.has(h) && headerMap.get(h).size > 0) {
+          extractedItems.push(`・${h}：${Array.from(headerMap.get(h)).join(" / ")}`);
+        }
+      }
+
       // 2. 【】が無いフリーテキスト行からも求職者向け条件っぽい行だけ抽出
       const freeLines = raw
-        .replace(/【[^】]+】[\s\S]*?(?=【|$)/g, "") // 既に処理した【】ブロックは除外
+        .replace(/【[^】]+】[\s\S]*?(?=【|$)/g, "")
         .split(/[\n\r]+/);
 
       const candidateKeywordPattern = /(資格|初任者|実務者|介護福祉士|介福|正看護|准看護|正看|准看|ヘルパー|無資格|経験|未経験|ブランク|週\s*[1-7１-７]|シフト|曜日|固定|土日|休日|休み|勤務時間|\d{1,2}[:：]\d{2}|\d{3,4}\s*[-－〜～]\s*\d{3,4}|早番|早出|日勤|遅番|遅出|夜勤|休憩|残業|交通費|車通勤|マイカー|駐車場|バイク|自転車|駅|徒歩|制服|食事|扶養|ユニット|従来|フロア)/;
@@ -1155,8 +1166,8 @@
         if (!trimmed) continue;
         if (!candidateKeywordPattern.test(trimmed)) continue;
         const cleaned = sanitizeCandidatePhrase(trimmed);
-        if (cleaned && !seen.has(cleaned)) {
-          seen.add(cleaned);
+        if (cleaned && !seenFree.has(cleaned)) {
+          seenFree.add(cleaned);
           extractedItems.push(`・${cleaned}`);
         }
       }
