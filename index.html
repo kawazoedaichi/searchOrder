@@ -589,27 +589,129 @@
       });
     }
 
-    async function initApp() {
-      loadGithubConfigToForm();
-      try {
-        const ts = Date.now();
-        const [dictRes, jobsRes] = await Promise.all([
-          fetch(`./coords_dict.json?v=${ts}`).catch(() => null),
-          fetch(`./jobs.json?v=${ts}`).catch(() => null)
-        ]);
+    // IndexedDB 高速ローカルキャッシュ（数MBのJSONを毎回再ダウンロード・再計算しない）
+    const IDB_NAME = "searchOrderCacheDB";
+    const IDB_STORE = "kv";
+    function idbGet(key) {
+      return new Promise(resolve => {
+        try {
+          const req = indexedDB.open(IDB_NAME, 1);
+          req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
+          req.onsuccess = () => {
+            const tx = req.result.transaction(IDB_STORE, "readonly");
+            const g = tx.objectStore(IDB_STORE).get(key);
+            g.onsuccess = () => resolve(g.result || null);
+            g.onerror = () => resolve(null);
+          };
+          req.onerror = () => resolve(null);
+        } catch (e) { resolve(null); }
+      });
+    }
+    function idbSet(key, val) {
+      return new Promise(resolve => {
+        try {
+          const req = indexedDB.open(IDB_NAME, 1);
+          req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
+          req.onsuccess = () => {
+            const tx = req.result.transaction(IDB_STORE, "readwrite");
+            tx.objectStore(IDB_STORE).put(val, key);
+            tx.oncomplete = () => resolve(true);
+            tx.onerror = () => resolve(false);
+          };
+          req.onerror = () => resolve(false);
+        } catch (e) { resolve(false); }
+      });
+    }
 
-        if (dictRes && dictRes.ok) {
-          TOWN_COORDS_DICT = await dictRes.json();
+    let dictLoadedPromise = null;
+    async function ensureCoordsDictLoaded() {
+      if (Object.keys(TOWN_COORDS_DICT).length > 0) return TOWN_COORDS_DICT;
+      if (dictLoadedPromise) return dictLoadedPromise;
+      dictLoadedPromise = (async () => {
+        try {
+          const cachedDict = await idbGet("coords_dict_cache");
+          if (cachedDict && cachedDict.data) {
+            TOWN_COORDS_DICT = cachedDict.data;
+          }
+          const headRes = await fetch("./coords_dict.json", { method: "HEAD", cache: "no-cache" }).catch(() => null);
+          const remoteTag = headRes ? (headRes.headers.get("etag") || headRes.headers.get("last-modified") || "") : "";
+          if (!cachedDict || !cachedDict.data || (remoteTag && cachedDict.tag !== remoteTag)) {
+            const dictRes = await fetch("./coords_dict.json", { cache: "no-cache" }).catch(() => null);
+            if (dictRes && dictRes.ok) {
+              TOWN_COORDS_DICT = await dictRes.json();
+              const newTag = dictRes.headers.get("etag") || dictRes.headers.get("last-modified") || remoteTag;
+              await idbSet("coords_dict_cache", { tag: newTag, data: TOWN_COORDS_DICT });
+            }
+          }
           const prefCount = Object.keys(TOWN_COORDS_DICT).length;
           const badge = document.getElementById("dictStatusBadge");
           if (badge) badge.innerHTML = `<i class="fa-solid fa-location-crosshairs"></i> 町丁目高精度座標内蔵 (${prefCount}都道府県)`;
+          renderDictCoverage();
+        } catch (e) {
+          console.warn("座標辞書ロードエラー:", e);
+        }
+        return TOWN_COORDS_DICT;
+      })();
+      return dictLoadedPromise;
+    }
+
+    function prepareJobsFast(rawJobs) {
+      // jobs.json に既に id / lat / lng / timestamp / shifts が入っている場合は高速パスを通す
+      const isAlreadyMerged = rawJobs.length > 0 && rawJobs[0].timestamp !== undefined && rawJobs[0].empTypes !== undefined;
+      if (isAlreadyMerged) {
+        return rawJobs.map((j, idx) => ({
+          ...j,
+          id: j.id || `job_${idx}`,
+          _boDateText: formatBoDateDisplay(j.date, j.timestamp),
+          _fullAddr: formatFullAddress(j),
+          _cleanNotes: extractCandidateNotes(j.notes)
+        }));
+      }
+      const enriched = rawJobs.map((j, idx) => enrichJobData(j, idx));
+      const merged = mergeDuplicateJobs(enriched);
+      return merged.map(j => ({
+        ...j,
+        _boDateText: formatBoDateDisplay(j.date, j.timestamp),
+        _fullAddr: formatFullAddress(j),
+        _cleanNotes: extractCandidateNotes(j.notes)
+      }));
+    }
+
+    async function initApp() {
+      loadGithubConfigToForm();
+      try {
+        // 1. まずローカルキャッシュ（IndexedDB）から即座に0.1秒で画面描画
+        const cachedJobs = await idbGet("jobs_cache_v1");
+        if (cachedJobs && Array.isArray(cachedJobs.jobs) && cachedJobs.jobs.length > 0) {
+          allJobs = cachedJobs.jobs;
+          updateHeaderCounts();
+          renderPrefPills();
+          applyFilters();
         }
 
-        if (jobsRes && jobsRes.ok) {
-          const rawJobs = await jobsRes.json();
-          const enriched = rawJobs.map((j, idx) => enrichJobData(j, idx));
-          allJobs = mergeDuplicateJobs(enriched);
+        // 2. バックグラウンドで jobs.json の更新チェック（変更時のみ再取得＆再計算）
+        const headRes = await fetch("./jobs.json", { method: "HEAD", cache: "no-cache" }).catch(() => null);
+        const remoteTag = headRes ? (headRes.headers.get("etag") || headRes.headers.get("last-modified") || "") : "";
+
+        if (!cachedJobs || !cachedJobs.jobs || (remoteTag && cachedJobs.tag !== remoteTag) || !remoteTag) {
+          const jobsRes = await fetch("./jobs.json", { cache: "no-cache" }).catch(() => null);
+          if (jobsRes && jobsRes.ok) {
+            const rawJobs = await jobsRes.json();
+            const needDict = rawJobs.some(j => j.lat == null || j.lng == null);
+            if (needDict) {
+              await ensureCoordsDictLoaded();
+            }
+            allJobs = prepareJobsFast(rawJobs);
+            const newTag = jobsRes.headers.get("etag") || jobsRes.headers.get("last-modified") || remoteTag;
+            await idbSet("jobs_cache_v1", { tag: newTag, jobs: allJobs });
+            updateHeaderCounts();
+            renderPrefPills();
+            applyFilters();
+          }
         }
+
+        // 3. 座標辞書は初期表示完了後にバックグラウンドで遅延ロード（画面表示をブロックしない）
+        setTimeout(() => { ensureCoordsDictLoaded(); }, 800);
       } catch (e) {
         console.error("データ読込エラー:", e);
       }
@@ -782,6 +884,7 @@
       }
 
       // 3. フォールバック：ローカル町丁目辞書から検索
+      await ensureCoordsDictLoaded();
       for (const pref of Object.keys(TOWN_COORDS_DICT)) {
         if (q.includes(pref)) {
           const found = lookupCoordsFromDict(pref, "", q);
@@ -820,6 +923,7 @@
       applyFilters();
     }
 
+    let sliderDebounceTimer = null;
     function onDistanceRangeInput(val, shouldFilter = true) {
       const num = parseInt(val, 10);
       const badge = document.getElementById("distanceBadge");
@@ -831,7 +935,10 @@
         badge.textContent = `${num}km`;
         status.textContent = `${num}km以内`;
       }
-      if (shouldFilter) applyFilters();
+      if (shouldFilter) {
+        clearTimeout(sliderDebounceTimer);
+        sliderDebounceTimer = setTimeout(() => applyFilters(), 80);
+      }
     }
 
     function setDistancePreset(val) {
@@ -978,6 +1085,7 @@
       document.getElementById("countPillKango").textContent = allJobs.filter(j => (j.jobTypes || [j.jobType]).includes("看護")).length;
     }
 
+    let lastBaseCoordKey = "";
     function applyFilters() {
       displayLimit = 100;
       const maxDist = parseInt(document.getElementById("distanceRange").value, 10);
@@ -988,52 +1096,59 @@
       const startTs = startVal ? new Date(startVal + "T00:00:00").getTime() : null;
       const endTs = endVal ? new Date(endVal + "T23:59:59").getTime() : null;
 
-      filteredJobs = allJobs.map(job => {
-        let dist = null;
-        if (baseCoords && job.lat != null && job.lng != null) {
-          dist = calcDistanceKm(baseCoords.lat, baseCoords.lng, job.lat, job.lng);
+      // 基準地点が変わったときだけ全件の距離を再計算（スライダー移動やチップ切替では再利用）
+      const curCoordKey = baseCoords ? `${baseCoords.lat},${baseCoords.lng}` : "";
+      if (curCoordKey !== lastBaseCoordKey) {
+        lastBaseCoordKey = curCoordKey;
+        for (let i = 0; i < allJobs.length; i++) {
+          const job = allJobs[i];
+          job.distanceKm = (baseCoords && job.lat != null && job.lng != null)
+            ? calcDistanceKm(baseCoords.lat, baseCoords.lng, job.lat, job.lng)
+            : null;
         }
-        return { ...job, distanceKm: dist };
-      }).filter(job => {
-        if (currentRegion === "関東" && !KANTO_PREFS.includes(job.pref)) return false;
-        if (currentRegion === "関西" && !KANSAI_PREFS.includes(job.pref)) return false;
-        if (currentPref !== "all" && job.pref !== currentPref) return false;
+      }
+
+      const result = [];
+      for (let i = 0; i < allJobs.length; i++) {
+        const job = allJobs[i];
+        if (currentRegion === "関東" && !KANTO_PREFS.includes(job.pref)) continue;
+        if (currentRegion === "関西" && !KANSAI_PREFS.includes(job.pref)) continue;
+        if (currentPref !== "all" && job.pref !== currentPref) continue;
         if (currentJobType !== "all") {
           const jTypes = job.jobTypes || [job.jobType];
-          if (!jTypes.includes(currentJobType)) return false;
+          if (!jTypes.includes(currentJobType)) continue;
         }
 
         if (activeEmpTypes.size > 0) {
           const eTypes = job.empTypes || [job.empType];
-          if (!eTypes.some(et => activeEmpTypes.has(et))) return false;
+          if (!eTypes.some(et => activeEmpTypes.has(et))) continue;
         }
 
         if (activeShifts.size > 0) {
-          const hasShift = job.shifts.some(s => activeShifts.has(s));
-          if (!hasShift) return false;
+          if (!job.shifts.some(s => activeShifts.has(s))) continue;
         }
 
         if (activeFacilityTypes.size > 0) {
-          const hasType = Array.from(activeFacilityTypes).some(ft => matchFacilityType(job.facilityType, ft));
-          if (!hasType) return false;
+          if (!Array.from(activeFacilityTypes).some(ft => matchFacilityType(job.facilityType, ft))) continue;
         }
 
-        if (startTs && (!job.timestamp || job.timestamp < startTs)) return false;
-        if (endTs && (!job.timestamp || job.timestamp > endTs)) return false;
+        if (startTs && (!job.timestamp || job.timestamp < startTs)) continue;
+        if (endTs && (!job.timestamp || job.timestamp > endTs)) continue;
 
         if (baseCoords && maxDist < 51) {
-          if (job.distanceKm == null || job.distanceKm > maxDist) return false;
+          if (job.distanceKm == null || job.distanceKm > maxDist) continue;
         }
 
-        return true;
-      });
-
-      if (sortMode === "distance" && baseCoords) {
-        filteredJobs.sort((a, b) => (a.distanceKm ?? 99999) - (b.distanceKm ?? 99999));
-      } else {
-        filteredJobs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        result.push(job);
       }
 
+      if (sortMode === "distance" && baseCoords) {
+        result.sort((a, b) => (a.distanceKm ?? 99999) - (b.distanceKm ?? 99999));
+      } else {
+        result.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+      }
+
+      filteredJobs = result;
       renderJobList();
     }
 
@@ -1082,7 +1197,7 @@
         const shiftBadges = (job.shifts || []).map(s =>
           `<span class="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-[11px] font-bold">${escapeHtml(s)}</span>`
         ).join("");
-        const displayNotes = extractCandidateNotes(job.notes);
+        const displayNotes = job._cleanNotes !== undefined ? job._cleanNotes : (job._cleanNotes = extractCandidateNotes(job.notes));
 
         const eList = (job.empTypes && job.empTypes.length > 0) ? job.empTypes : [job.empType || "派遣"];
         const empBadgesHtml = eList.map(et => {
@@ -1104,12 +1219,12 @@
                   ${empBadgesHtml}
                   <span class="px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 text-[11px] font-semibold">${escapeHtml(job.facilityType || "施設")}</span>
                   ${distBadge}
-                  <span class="ml-auto text-[11px] text-gray-500 font-semibold">${escapeHtml(formatBoDateDisplay(job.date, job.timestamp))}</span>
+                  <span class="ml-auto text-[11px] text-gray-500 font-semibold">${escapeHtml(job._boDateText || (job._boDateText = formatBoDateDisplay(job.date, job.timestamp)))}</span>
                 </div>
                 <h2 class="text-sm sm:text-base font-extrabold text-gray-900 leading-snug mb-1">${escapeHtml(job.facility || "施設名未設定")}</h2>
                 <div class="text-xs text-gray-600 flex items-center gap-1.5 mb-2">
                   <i class="fa-solid fa-location-dot text-gray-400"></i>
-                  <span>${escapeHtml(formatFullAddress(job))}</span>
+                  <span>${escapeHtml(job._fullAddr || (job._fullAddr = formatFullAddress(job)))}</span>
                 </div>
                 <div class="flex flex-wrap items-center justify-between gap-2">
                   <div class="flex flex-wrap items-center gap-1">
@@ -1447,6 +1562,7 @@
     function openCsvModal() {
       const modal = document.getElementById("csvModal");
       if (modal) modal.style.display = "flex";
+      ensureCoordsDictLoaded();
     }
     function closeCsvModal() {
       const modal = document.getElementById("csvModal");
@@ -1576,6 +1692,7 @@
             bar.style.width = "70%";
             title.textContent = "座標辞書をGitHubへ保存中...";
             const ok = await pushFileToGithub("coords_dict.json", TOWN_COORDS_DICT, token, "Webアプリ経由でcoords_dict.jsonを更新する");
+          await idbSet("coords_dict_cache", { tag: String(Date.now()), data: TOWN_COORDS_DICT });
             pct.textContent = "100%";
             bar.style.width = "100%";
             title.textContent = ok ? "座標辞書をGitHubへ保存しました！" : "座標辞書のGitHub保存に失敗しました";
@@ -1654,6 +1771,7 @@
             bar.style.width = "75%";
             title.textContent = "座標辞書をGitHubへ保存中...";
             const ok = await pushFileToGithub("coords_dict.json", TOWN_COORDS_DICT, token, "Webアプリ経由でcoords_dict.jsonを更新する");
+          await idbSet("coords_dict_cache", { tag: String(Date.now()), data: TOWN_COORDS_DICT });
             pct.textContent = "100%";
             bar.style.width = "100%";
             title.textContent = ok ? "座標辞書をGitHubへ保存しました！" : "座標辞書のGitHub保存に失敗しました";
@@ -1730,7 +1848,8 @@
         const prevCount = allJobs.length;
         const combinedRaw = (mode === "accumulate") ? [...allJobs, ...parsedJobs] : [...parsedJobs];
         const mergedJobs = mergeDuplicateJobs(combinedRaw);
-        allJobs = mergedJobs;
+        allJobs = prepareJobsFast(mergedJobs);
+        idbSet("jobs_cache_v1", { tag: String(Date.now()), jobs: allJobs });
         selectedJobIds.clear();
         expandedNoteIds.clear();
         updateSelectedBadge();
@@ -1768,6 +1887,7 @@
       if (!confirm("過去の案件データ（jobs.json）をすべて消去して0件にリセットしますか？")) return;
       allJobs = [];
       filteredJobs = [];
+      idbSet("jobs_cache_v1", { tag: String(Date.now()), jobs: [] });
       selectedJobIds.clear();
       expandedNoteIds.clear();
       updateSelectedBadge();
