@@ -223,8 +223,16 @@
       <!-- 都道府県ピルタブ -->
       <div id="prefPillContainer" class="flex flex-wrap gap-1.5 text-xs"></div>
 
-      <!-- シフトチップ -->
+      <!-- 雇用形態チップ（デフォルト：派遣・紹介予定派遣 ON、紹介 OFF） -->
       <div class="flex flex-wrap items-center gap-1.5 pt-2 border-t border-gray-100">
+        <span class="text-xs font-bold text-gray-500 mr-1">雇用形態:</span>
+        <button type="button" id="btnEmpHaken" onclick="toggleEmpChip(this, '派遣')" class="emp-chip px-3 py-1 bg-blue-600 text-white rounded-lg text-xs font-semibold transition">派遣</button>
+        <button type="button" id="btnEmpTtp" onclick="toggleEmpChip(this, '紹介予定派遣')" class="emp-chip px-3 py-1 bg-blue-600 text-white rounded-lg text-xs font-semibold transition">紹介予定派遣</button>
+        <button type="button" id="btnEmpShokai" onclick="toggleEmpChip(this, '紹介')" class="emp-chip px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">紹介</button>
+      </div>
+
+      <!-- シフトチップ -->
+      <div class="flex flex-wrap items-center gap-1.5 pt-1">
         <span class="text-xs font-bold text-gray-500 mr-1">シフト:</span>
         <button type="button" onclick="toggleChip(this, 'shift', '早出')" class="chip px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">早出</button>
         <button type="button" onclick="toggleChip(this, 'shift', '日勤')" class="chip px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">日勤</button>
@@ -406,6 +414,7 @@
     let currentRegion = "all";
     let currentJobType = "all";
     let currentPref = "all";
+    let activeEmpTypes = new Set(["派遣", "紹介予定派遣"]);
     let activeShifts = new Set();
     let activeFacilityTypes = new Set();
     let displayLimit = 100;
@@ -446,6 +455,25 @@
       return s || "その他";
     }
 
+    function normalizeEmpType(rawEmpType, notes) {
+      let s = String(rawEmpType || "").trim();
+      if (!s && notes) {
+        const m = String(notes).match(/【(?:就業形態|取引種別)】\s*([^
+【]+)/);
+        if (m) s = m[1].trim();
+      }
+      if (!s && notes) {
+        const n = String(notes);
+        if (/紹介予定派遣|TTP/i.test(n)) return "紹介予定派遣";
+        if (/紹介のみ|正社員採用|正社員紹介|常勤のみ|パート紹介/.test(n)) return "紹介";
+      }
+      if (!s) return "派遣";
+      if (s.includes("紹介予定") || /TTP/i.test(s)) return "紹介予定派遣";
+      if (s.includes("派遣")) return "派遣";
+      if (s.includes("紹介") || s.includes("正社員") || s.includes("パート") || s.includes("契約社員") || s.includes("直接")) return "紹介";
+      return s;
+    }
+
     function enrichJobData(j, idx) {
       let lat = j.lat;
       let lng = j.lng;
@@ -477,6 +505,7 @@
         ...j,
         id: j.id || `job_${idx}`,
         jobType: normalizeJobType(j.jobType),
+        empType: normalizeEmpType(j.empType, j.notes),
         lat,
         lng,
         matchedTown,
@@ -679,6 +708,19 @@
       container.innerHTML = html;
     }
 
+    function toggleEmpChip(btn, val) {
+      if (activeEmpTypes.has(val)) {
+        activeEmpTypes.delete(val);
+        btn.classList.remove("bg-blue-600", "text-white");
+        btn.classList.add("bg-gray-100", "text-gray-700");
+      } else {
+        activeEmpTypes.add(val);
+        btn.classList.remove("bg-gray-100", "text-gray-700");
+        btn.classList.add("bg-blue-600", "text-white");
+      }
+      applyFilters();
+    }
+
     function toggleChip(btn, category, val) {
       const targetSet = category === "shift" ? activeShifts : activeFacilityTypes;
       if (targetSet.has(val)) {
@@ -739,6 +781,10 @@
         if (currentRegion === "関西" && !KANSAI_PREFS.includes(job.pref)) return false;
         if (currentPref !== "all" && job.pref !== currentPref) return false;
         if (currentJobType !== "all" && job.jobType !== currentJobType) return false;
+
+        if (activeEmpTypes.size > 0) {
+          if (!activeEmpTypes.has(job.empType)) return false;
+        }
 
         if (activeShifts.size > 0) {
           const hasShift = job.shifts.some(s => activeShifts.has(s));
@@ -815,6 +861,10 @@
           `<span class="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-[11px] font-bold">${escapeHtml(s)}</span>`
         ).join("");
 
+        const empBadgeColor = job.empType === "紹介予定派遣"
+          ? "bg-purple-50 text-purple-700 border-purple-200"
+          : (job.empType === "紹介" ? "bg-orange-50 text-orange-700 border-orange-200" : "bg-teal-50 text-teal-700 border-teal-200");
+
         return `
           <div onclick="toggleJobSelection('${job.id}')" class="bg-white rounded-2xl p-4 shadow-sm border transition cursor-pointer ${isChecked ? 'border-blue-500 ring-2 ring-blue-100 bg-blue-50/20' : 'border-gray-200/80 hover:border-blue-300'}">
             <div class="flex items-start gap-3">
@@ -824,6 +874,7 @@
               <div class="flex-1 min-w-0">
                 <div class="flex flex-wrap items-center gap-1.5 mb-1.5">
                   <span class="px-2 py-0.5 rounded-md border text-[11px] font-extrabold ${jobBadgeColor}">${escapeHtml(job.jobType || "その他")}</span>
+                  <span class="px-2 py-0.5 rounded-md border text-[11px] font-extrabold ${empBadgeColor}">${escapeHtml(job.empType || "派遣")}</span>
                   <span class="px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 text-[11px] font-semibold">${escapeHtml(job.facilityType || "施設")}</span>
                   ${distBadge}
                   <span class="ml-auto text-[11px] text-gray-400 font-medium">${escapeHtml(job.date || "")}</span>
@@ -914,9 +965,17 @@
       const header = "📋 案件候補のご案内\n\n";
       const body = targets.map((j, idx) => {
         const shortType = formatShortFacilityType(j.facilityType);
-        const area = `${j.pref || ""}${j.city || ""}${j.address || ""}`;
+        const pref = j.pref || "";
+        const city = j.city || "";
+        let addr = j.address || "";
+        if (pref && addr.startsWith(pref)) addr = addr.slice(pref.length);
+        if (city && addr.startsWith(city)) addr = addr.slice(city.length);
+        const normCity = city.replace(/ヶ/g, "ケ");
+        const normAddr = addr.replace(/ヶ/g, "ケ");
+        if (normCity && normAddr.startsWith(normCity)) addr = addr.slice(normCity.length);
+        const area = `${pref}${city}${addr}`;
         const workTime = extractWorkHoursSummary(j.notes, j.shifts);
-        return `■ ${idx + 1}. ${j.facility}\n施設形態：${shortType}\nエリア：${area}\n勤務時間：${workTime}\n---`;
+        return `■ ${idx + 1}. ${j.facility}\n施設形態：${shortType}\nエリア：${area}\n勤務時間：${workTime}\n―――`;
       }).join("\n\n");
 
       const footer = `\n\n※時給相場：介護 1,500〜1,800円程度／看護 2,200〜2,450円程度（資格・経験により変動します）\n※勤務時間やシフトは直近のオーダー内容です。ご状況に合わせて相談・調整も可能ですのでお気軽にどうぞ！\n\n気になる案件がございましたら下記をご返信ください📩\n\n【ご返信テンプレート】\n気になる案件：\n見学希望日：\n\n※応募者多数のため、2〜3件エントリーがおすすめです！`;
@@ -932,6 +991,13 @@
       currentRegion = "all";
       currentJobType = "all";
       currentPref = "all";
+      activeEmpTypes = new Set(["派遣", "紹介予定派遣"]);
+      ["btnEmpHaken", "btnEmpTtp"].forEach(id => {
+        const b = document.getElementById(id);
+        if (b) { b.classList.add("bg-blue-600", "text-white"); b.classList.remove("bg-gray-100", "text-gray-700"); }
+      });
+      const bShokai = document.getElementById("btnEmpShokai");
+      if (bShokai) { bShokai.classList.remove("bg-blue-600", "text-white"); bShokai.classList.add("bg-gray-100", "text-gray-700"); }
       activeShifts.clear();
       activeFacilityTypes.clear();
       document.getElementById("dateStart").value = "";
@@ -1091,7 +1157,8 @@
           return;
         }
 
-        // Metabase 案件CSVの変換
+        // Metabase 案件CSVの変換（K列=11列目も自動参照）
+        const kColKey = headers.length > 10 ? headers[10] : "";
         const parsedJobs = rows.map((r, idx) => {
           const pref = pickCol(r, ["都道府県", "都道府県名", "pref", "prefecture"]);
           const city = pickCol(r, ["市区町村", "市区町村名", "city"]);
@@ -1099,6 +1166,10 @@
           const facility = pickCol(r, ["施設名", "事業所名", "クライアント名", "法人名", "facility", "client_name"]);
           const jobType = pickCol(r, ["職種", "案件種別", "募集職種", "jobType", "job_type"]) || "介護";
           const facilityType = pickCol(r, ["施設形態", "サービス種別", "事業所種別", "facilityType", "facility_type"]) || "一般";
+          let empType = pickCol(r, ["雇用形態", "就業形態", "取引種別", "契約形態", "empType", "employment_type"]);
+          if (!empType && kColKey && r[kColKey] !== undefined) {
+            empType = String(r[kColKey]).trim();
+          }
           const notes = pickCol(r, ["備考", "詳細", "メモ", "案件詳細", "notes", "memo"]);
           const date = pickCol(r, ["獲得日時", "登録日時", "更新日時", "BO取得日時", "作成日時", "date", "created_at"]);
           const coords = lookupCoordsFromDict(pref, city, addr);
@@ -1108,6 +1179,7 @@
             pref,
             city,
             address: addr,
+            empType,
             jobType,
             facilityType,
             shifts: [],
