@@ -54,6 +54,7 @@
         </div>
         <p class="text-gray-700">メタベース ＞ キカリ共通 ＞ バックオーダー</p>
         <p class="text-[11px] text-gray-500 mt-1">※UTF-8 / Shift-JIS 両対応。落としたCSVをドロップすると、<strong>高精度町丁目座標辞書（coords_dict.json）</strong>と自動照合して座標を付与し、GitHubへ全自動同期します。</p>
+        <div id="dictCoveragePanel" class="mt-2 pt-2 border-t border-blue-200/80 text-[11px]"></div>
       </div>
 
       <!-- 初回トークン設定アコーディオン -->
@@ -104,7 +105,7 @@
 
       <!-- CSVドロップゾーン -->
       <div id="dropZone" class="mt-3 border-2 border-dashed border-blue-400 hover:border-blue-600 bg-blue-50/40 rounded-2xl p-7 text-center cursor-pointer transition" onclick="document.getElementById('fileInput').click()">
-        <input type="file" id="fileInput" accept=".csv" multiple class="hidden" onchange="handleFilesDrop(this.files)">
+        <input type="file" id="fileInput" accept=".csv,.json" multiple class="hidden" onchange="handleFilesDrop(this.files)">
         <div class="text-4xl text-blue-500 mb-2"><i class="fa-solid fa-cloud-arrow-up"></i></div>
         <p class="text-sm font-bold text-gray-800">ここにMetabaseのCSVをドロップ（またはクリックして選択）</p>
         <p class="text-xs text-gray-500 mt-1">※国交省・街区位置参照CSVをドロップすると座標辞書に自動追加＆GitHub保存されます</p>
@@ -613,6 +614,7 @@
         console.error("データ読込エラー:", e);
       }
 
+      renderDictCoverage();
       updateHeaderCounts();
       renderPrefPills();
       applyFilters();
@@ -939,6 +941,34 @@
         case "小多機": return t.includes("小規模多機能");
         default: return t.includes(filterKey);
       }
+    }
+
+    function renderDictCoverage() {
+      const panel = document.getElementById("dictCoveragePanel");
+      if (!panel) return;
+      const registered = Object.keys(TOWN_COORDS_DICT);
+      const majorPrefs = [
+        "東京都", "神奈川県", "埼玉県", "千葉県", "茨城県", "栃木県", "群馬県",
+        "大阪府", "兵庫県", "京都府", "滋賀県", "奈良県", "和歌山県",
+        "愛知県", "静岡県", "岐阜県", "三重県",
+        "福岡県", "北海道", "宮城県", "広島県"
+      ];
+      const missingMajor = majorPrefs.filter(p => !registered.includes(p));
+      // Also find any prefectures present in allJobs that are NOT in TOWN_COORDS_DICT
+      const jobPrefs = Array.from(new Set(allJobs.map(j => j.pref).filter(Boolean)));
+      const missingFromJobs = jobPrefs.filter(p => !registered.includes(p));
+
+      const regText = registered.length > 0 ? registered.join("・") : "なし";
+      const missText = missingMajor.length > 0 ? missingMajor.join("・") : "主要エリアはすべて登録済み！";
+      const jobMissHtml = missingFromJobs.length > 0
+        ? `<div class="mt-1 text-red-600 font-bold">⚠️ 現在の案件データにある未登録県: ${missingFromJobs.join("・")}</div>`
+        : "";
+
+      panel.innerHTML = `
+        <div class="text-emerald-800 font-bold">✅ 登録済み (${registered.length}都道府県): <span class="font-normal text-gray-700">${regText}</span></div>
+        <div class="mt-1 text-amber-800 font-bold">📍 主要エリア未登録: <span class="font-normal text-gray-700">${missText}</span></div>
+        ${jobMissHtml}
+      `;
     }
 
     function updateHeaderCounts() {
@@ -1333,7 +1363,7 @@
         wageLabel = "看護 2,200〜2,450円程度";
       }
 
-      const footer = `\n\n※時給相場：${wageLabel}（資格・経験により変動します）\n※勤務時間やシフトは直近のオーダー内容です。ご状況に合わせて相談・調整も可能ですのでお気軽にどうぞ！\n\n気になる案件番号がございましたら下記をご返信ください📩\n\n【ご返信テンプレート】\n気になる案件番号：\n見学希望日：\n\n※応募者多数のため、2〜3件エントリーがおすすめです！`;
+      const footer = `\n\n※時給相場：${wageLabel}（資格・経験により変動します）\n※勤務時間やシフトは直近のオーダー内容です。ご状況に合わせて相談・調整も可能ですのでお気軽にどうぞ！\n\n気になる案件がございましたら下記をご返信ください📩\n\n【ご返信テンプレート】\n気になる案件：\n見学希望日：\n\n※応募者多数のため、2〜3件エントリーがおすすめです！`;
 
       const text = header + body + footer;
 
@@ -1496,7 +1526,6 @@
 
     function handleFilesDrop(files) {
       if (!files || !files.length) return;
-      const file = files[0];
       const box = document.getElementById("uploadStatusBox");
       const title = document.getElementById("uploadStatusTitle");
       const pct = document.getElementById("uploadStatusPct");
@@ -1504,35 +1533,42 @@
       const detail = document.getElementById("uploadStatusDetail");
 
       box.classList.remove("hidden");
-      title.textContent = "CSV解析中...";
-      pct.textContent = "30%";
-      bar.style.width = "30%";
+      title.textContent = `ファイル解析中 (${files.length}件)...`;
+      pct.textContent = "20%";
+      bar.style.width = "20%";
 
-      parseCsvWithAutoEncoding(file, async function(results) {
-        const rows = results.data;
-        if (!rows || rows.length === 0) {
-          title.textContent = "エラー: データが空です";
-          return;
-        }
+      const fileList = Array.from(files);
+      const token = localStorage.getItem("gh_pat");
 
-        const headers = Object.keys(rows[0]);
-        const token = localStorage.getItem("gh_pat");
-
-        // 国交省位置参照CSVの場合（大字町丁目名 / 大字・丁目名 両対応）
-        const mlitTownCol = headers.includes("大字町丁目名") ? "大字町丁目名" : (headers.includes("大字・丁目名") ? "大字・丁目名" : "");
-        if (headers.includes("都道府県名") && mlitTownCol && headers.includes("緯度")) {
-          let added = 0;
-          rows.forEach(r => {
-            const p = r["都道府県名"], c = r["市区町村名"], t = r[mlitTownCol];
-            const la = parseFloat(r["緯度"]), ln = parseFloat(r["経度"]);
-            if (p && c && t && !isNaN(la) && !isNaN(ln)) {
-              if (!TOWN_COORDS_DICT[p]) TOWN_COORDS_DICT[p] = {};
-              if (!TOWN_COORDS_DICT[p][c]) TOWN_COORDS_DICT[p][c] = {};
-              TOWN_COORDS_DICT[p][c][t] = [la, ln];
-              added++;
+      // JSON辞書ファイルがドロップされた場合はそのままマージしてGitHub保存
+      if (fileList.every(f => f.name.toLowerCase().endsWith(".json"))) {
+        (async () => {
+          let mergedPrefs = 0;
+          let addedTowns = 0;
+          for (const f of fileList) {
+            try {
+              const txt = await f.text();
+              const obj = JSON.parse(txt);
+              for (const [pref, cities] of Object.entries(obj)) {
+                if (!cities || typeof cities !== "object") continue;
+                if (!TOWN_COORDS_DICT[pref]) TOWN_COORDS_DICT[pref] = {};
+                mergedPrefs++;
+                for (const [city, towns] of Object.entries(cities)) {
+                  if (!TOWN_COORDS_DICT[pref][city]) TOWN_COORDS_DICT[pref][city] = {};
+                  for (const [town, coords] of Object.entries(towns)) {
+                    if (Array.isArray(coords) && coords.length >= 2) {
+                      TOWN_COORDS_DICT[pref][city][town] = coords;
+                      addedTowns++;
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              console.error("JSON読込エラー:", e);
             }
-          });
+          }
           allJobs = allJobs.map((j, idx) => enrichJobData({ ...j, lat: null, lng: null }, idx));
+          renderDictCoverage();
           applyFilters();
 
           if (token) {
@@ -1543,17 +1579,101 @@
             pct.textContent = "100%";
             bar.style.width = "100%";
             title.textContent = ok ? "座標辞書をGitHubへ保存しました！" : "座標辞書のGitHub保存に失敗しました";
-            detail.textContent = `${added.toLocaleString()}件の町丁目座標を追加しました。`;
+            detail.textContent = `${mergedPrefs}都道府県・${addedTowns.toLocaleString()}町丁目の座標を統合しました。`;
           } else {
             pct.textContent = "100%";
             bar.style.width = "100%";
             title.textContent = "座標辞書を更新しました（画面反映済み）";
-            detail.textContent = `${added.toLocaleString()}件の町丁目座標を追加しました。`;
+            detail.textContent = `${mergedPrefs}都道府県・${addedTowns.toLocaleString()}町丁目の座標を統合しました。`;
           }
+        })();
+        return;
+      }
+
+      // 複数CSVの順次パース対応（国交省位置参照CSVの複数一括ドロップにも対応）
+      (async () => {
+        let totalMlitTowns = 0;
+        let hasMlit = false;
+        let allMetabaseRows = [];
+        let lastMetabaseHeaders = [];
+
+        for (let i = 0; i < fileList.length; i++) {
+          const f = fileList[i];
+          if (!f.name.toLowerCase().endsWith(".csv")) continue;
+          title.textContent = `解析中 (${i + 1}/${fileList.length}): ${f.name}`;
+          pct.textContent = `${Math.round(15 + (i / fileList.length) * 45)}%`;
+          bar.style.width = `${Math.round(15 + (i / fileList.length) * 45)}%`;
+
+          const results = await new Promise(resolve => parseCsvWithAutoEncoding(f, resolve));
+          const rows = results.data || [];
+          if (rows.length === 0) continue;
+          const headers = Object.keys(rows[0]);
+          const mlitTownCol = headers.includes("大字町丁目名") ? "大字町丁目名" : (headers.includes("大字・丁目名") ? "大字・丁目名" : "");
+
+          if (headers.includes("都道府県名") && mlitTownCol && headers.includes("緯度")) {
+            hasMlit = true;
+            const acc = {};
+            rows.forEach(r => {
+              const p = r["都道府県名"], c = r["市区町村名"], t = r[mlitTownCol];
+              const la = parseFloat(r["緯度"]), ln = parseFloat(r["経度"]);
+              if (p && c && t && !isNaN(la) && !isNaN(ln)) {
+                acc[p] = acc[p] || {};
+                acc[p][c] = acc[p][c] || {};
+                if (!acc[p][c][t]) acc[p][c][t] = { sumLat: 0, sumLng: 0, cnt: 0 };
+                acc[p][c][t].sumLat += la;
+                acc[p][c][t].sumLng += ln;
+                acc[p][c][t].cnt += 1;
+              }
+            });
+            for (const [p, cities] of Object.entries(acc)) {
+              if (!TOWN_COORDS_DICT[p]) TOWN_COORDS_DICT[p] = {};
+              for (const [c, towns] of Object.entries(cities)) {
+                if (!TOWN_COORDS_DICT[p][c]) TOWN_COORDS_DICT[p][c] = {};
+                for (const [t, val] of Object.entries(towns)) {
+                  TOWN_COORDS_DICT[p][c][t] = [
+                    Number((val.sumLat / val.cnt).toFixed(6)),
+                    Number((val.sumLng / val.cnt).toFixed(6))
+                  ];
+                  totalMlitTowns++;
+                }
+              }
+            }
+          } else {
+            allMetabaseRows = allMetabaseRows.concat(rows);
+            lastMetabaseHeaders = headers;
+          }
+        }
+
+        if (hasMlit) {
+          allJobs = allJobs.map((j, idx) => enrichJobData({ ...j, lat: null, lng: null }, idx));
+          renderDictCoverage();
+          applyFilters();
+
+          if (token) {
+            pct.textContent = "75%";
+            bar.style.width = "75%";
+            title.textContent = "座標辞書をGitHubへ保存中...";
+            const ok = await pushFileToGithub("coords_dict.json", TOWN_COORDS_DICT, token, "Webアプリ経由でcoords_dict.jsonを更新する");
+            pct.textContent = "100%";
+            bar.style.width = "100%";
+            title.textContent = ok ? "座標辞書をGitHubへ保存しました！" : "座標辞書のGitHub保存に失敗しました";
+            detail.textContent = `${totalMlitTowns.toLocaleString()}町丁目の重心座標を算出して追加しました。`;
+          } else {
+            pct.textContent = "100%";
+            bar.style.width = "100%";
+            title.textContent = "座標辞書を更新しました（画面反映済み）";
+            detail.textContent = `${totalMlitTowns.toLocaleString()}町丁目の重心座標を算出して追加しました。`;
+          }
+          if (allMetabaseRows.length === 0) return;
+        }
+
+        if (allMetabaseRows.length === 0) {
+          if (!hasMlit) title.textContent = "エラー: 有効なCSVデータが見つかりません";
           return;
         }
 
-        // Metabase 案件CSVの変換（K列=11列目も自動参照）
+        const headers = lastMetabaseHeaders;
+        const rows = allMetabaseRows;
         const kColKey = headers.length > 10 ? headers[10] : "";
         const parsedJobs = rows.map((r, idx) => {
           const pref = pickCol(r, ["都道府県", "都道府県名", "pref", "prefecture"]);
@@ -1563,12 +1683,10 @@
             pickCol(r, ["町域", "町名", "町丁目", "大字町丁目", "大字", "town"]),
             pickCol(r, ["番地", "番地以降", "住所2", "住所２", "建物名", "address2"])
           ].filter(Boolean);
-          // 重複除去しつつ結合
           let addr = "";
           for (const part of addrParts) {
             if (!addr.includes(part)) addr += part;
           }
-          // それでも空の場合、ヘッダー名に「住所」「町」「番地」を含む列をすべて結合
           if (!addr) {
             for (const h of headers) {
               if (h === "都道府県" || h === "都道府県名" || h === "市区町村" || h === "市区町村名") continue;
@@ -1643,7 +1761,7 @@
           bar.style.width = "100%";
           detail.textContent = `全${mergedJobs.length}件を画面に反映しました。※GitHubにも保存する場合は上の「GitHub自動更新設定」にトークンを入力してください。`;
         }
-      });
+      })();
     }
 
     async function resetAllJobsData() {
@@ -1672,29 +1790,55 @@
     }
 
     async function pushFileToGithub(path, jsonData, token, commitPrefix) {
-      const owner = localStorage.getItem("gh_owner") || "kawazoedaichi";
-      const repo = localStorage.getItem("gh_repo") || "searchOrder";
+      const owner = (localStorage.getItem("gh_owner") || "kawazoedaichi").trim();
+      const repo = (localStorage.getItem("gh_repo") || "searchOrder").trim();
+      const cleanToken = (token || "").trim();
       const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
 
       try {
         let sha = null;
-        const getRes = await fetch(apiUrl, { headers: { Authorization: `token ${token}` } });
+        // 1. 通常のContents APIでsha取得を試行（1MB以下のファイル用）
+        const getRes = await fetch(apiUrl, {
+          headers: { Authorization: `token ${cleanToken}` },
+          cache: "no-store"
+        });
         if (getRes.ok) {
           const info = await getRes.json();
           sha = info.sha;
+        } else if (getRes.status === 403 || getRes.status === 422) {
+          // 2. 1MB超のファイル（coords_dict.json等）はContents APIのGETが403になるため、Git Trees APIで親ディレクトリのshaを取得
+          const repoRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+            headers: { Authorization: `token ${cleanToken}` },
+            cache: "no-store"
+          });
+          if (repoRes.ok) {
+            const repoInfo = await repoRes.json();
+            const branch = repoInfo.default_branch || "main";
+            const treeRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}`, {
+              headers: { Authorization: `token ${cleanToken}` },
+              cache: "no-store"
+            });
+            if (treeRes.ok) {
+              const treeData = await treeRes.json();
+              const entry = (treeData.tree || []).find(item => item.path === path);
+              if (entry) sha = entry.sha;
+            }
+          }
         }
+
         const contentStr = JSON.stringify(jsonData);
         const bytes = new TextEncoder().encode(contentStr);
         let binary = "";
-        for (let i = 0; i < bytes.byteLength; i++) {
-          binary += String.fromCharCode(bytes[i]);
+        const chunkSize = 0x8000;
+        for (let i = 0; i < bytes.byteLength; i += chunkSize) {
+          binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
         }
         const encoded = btoa(binary);
         const today = new Date().toISOString().slice(0, 10).replace(/-/g, "/");
         const putRes = await fetch(apiUrl, {
           method: "PUT",
           headers: {
-            Authorization: `token ${token}`,
+            Authorization: `token ${cleanToken}`,
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
