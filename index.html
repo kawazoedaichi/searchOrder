@@ -283,7 +283,7 @@
   </main>
 
   <!-- 固定アクションバー -->
-  <footer class="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur border-t border-gray-200 shadow-lg px-4 py-3 z-40">
+  <footer class="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur border-t border-gray-200 shadow-lg px-4 py-3 z-50">
     <div class="max-w-4xl mx-auto flex items-center justify-between gap-2">
       <div class="flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-700">
         <button type="button" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" class="p-2 text-gray-500 hover:text-gray-800 rounded-lg hover:bg-gray-100 transition" title="トップへ戻る">
@@ -434,9 +434,9 @@
       jobs.forEach((job) => {
         const normFacility = normalizeKeyStr(job.facility);
         const normAddr = normalizeKeyStr(formatFullAddress(job));
-        const normJobType = String(job.jobType || "介護").trim();
-        const normEmpType = String(job.empType || "派遣").trim();
-        // 施設名 + 住所 + 職種(介護/看護) + 雇用形態(派遣/紹介予定派遣/紹介) ごとに統合（1施設最大6パターン）
+        const normJobType = normalizeJobType(job.jobType);
+        const normEmpType = normalizeEmpType(job.empType, "");
+        // 施設名 + 住所 + 職種(介護/看護) + 雇用形態(派遣/紹介予定派遣/紹介) の4要素がすべて一致するものだけを統合
         const key = `${normFacility}__${normAddr}__${normJobType}__${normEmpType}`;
 
         if (!map.has(key)) {
@@ -451,7 +451,7 @@
         } else {
           const existing = map.get(key);
 
-          // BO取得日時は一番新しいものを採用
+          // 同じ区分（例：同じ「看護・派遣」同士）の中で、一番新しいBO取得日時を採用
           if ((job.timestamp || 0) > (existing.timestamp || 0)) {
             existing.timestamp = job.timestamp;
             existing.date = job.date;
@@ -605,6 +605,26 @@
       const cleaned = dateStr.replace(/\//g, "-");
       const parsed = Date.parse(cleaned);
       return isNaN(parsed) ? 0 : parsed;
+    }
+
+    function formatBoDateDisplay(dateStr, ts) {
+      let t = ts;
+      if (!t && dateStr) {
+        t = parseJapaneseDate(dateStr);
+      }
+      if (t && t > 0) {
+        const d = new Date(t);
+        const y = d.getFullYear();
+        const m = d.getMonth() + 1;
+        const day = d.getDate();
+        return `${y}/${m}/${day}　BO取得`;
+      }
+      if (!dateStr) return "";
+      const mJp = String(dateStr).match(/(\d{1,2})月\s*(\d{1,2}),\s*(\d{4})/);
+      if (mJp) {
+        return `${mJp[3]}/${parseInt(mJp[1], 10)}/${parseInt(mJp[2], 10)}　BO取得`;
+      }
+      return `${dateStr}　BO取得`;
     }
 
     function calcDistanceKm(lat1, lon1, lat2, lon2) {
@@ -938,6 +958,7 @@
         const shiftBadges = (job.shifts || []).map(s =>
           `<span class="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-[11px] font-bold">${escapeHtml(s)}</span>`
         ).join("");
+        const displayNotes = extractCandidateNotes(job.notes);
 
         const eList = (job.empTypes && job.empTypes.length > 0) ? job.empTypes : [job.empType || "派遣"];
         const empBadgesHtml = eList.map(et => {
@@ -959,7 +980,7 @@
                   ${empBadgesHtml}
                   <span class="px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 text-[11px] font-semibold">${escapeHtml(job.facilityType || "施設")}</span>
                   ${distBadge}
-                  <span class="ml-auto text-[11px] text-gray-400 font-medium">${escapeHtml(job.date || "")}</span>
+                  <span class="ml-auto text-[11px] text-gray-500 font-semibold">${escapeHtml(formatBoDateDisplay(job.date, job.timestamp))}</span>
                 </div>
                 <h2 class="text-sm sm:text-base font-extrabold text-gray-900 leading-snug mb-1">${escapeHtml(job.facility || "施設名未設定")}</h2>
                 <div class="text-xs text-gray-600 flex items-center gap-1.5 mb-2">
@@ -970,14 +991,14 @@
                   <div class="flex flex-wrap items-center gap-1">
                     ${shiftBadges}
                   </div>
-                  ${job.notes ? `
+                  ${displayNotes ? `
                     <button type="button" onclick="event.stopPropagation(); toggleNoteDetail('${job.id}')" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${expandedNoteIds.has(job.id) ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'}">
                       <i class="fa-solid ${expandedNoteIds.has(job.id) ? 'fa-chevron-up' : 'fa-chevron-down'} text-[10px]"></i>
                       <span>${expandedNoteIds.has(job.id) ? '詳細を閉じる' : '詳細を見る'}</span>
                     </button>
                   ` : ""}
                 </div>
-                ${job.notes && expandedNoteIds.has(job.id) ? `<div onclick="event.stopPropagation()" class="mt-2.5 p-3 bg-gray-50 rounded-xl text-xs text-gray-700 whitespace-pre-wrap leading-relaxed border border-gray-200/80 cursor-text">${escapeHtml(job.notes)}</div>` : ""}
+                ${displayNotes && expandedNoteIds.has(job.id) ? `<div onclick="event.stopPropagation()" class="mt-2.5 p-3 bg-gray-50 rounded-xl text-xs text-gray-700 whitespace-pre-wrap leading-relaxed border border-gray-200/80 cursor-text">${escapeHtml(displayNotes)}</div>` : ""}
               </div>
             </div>
           </div>
@@ -1035,6 +1056,114 @@
       document.getElementById("selectedCountBadge").textContent = `${selectedJobIds.size}件選択中`;
     }
 
+    // 求職者向け備考スマート抽出＆クレンジング（社内情報・単価・担当者・年齢制限・平均介護度・「OK」表現を除去）
+    function formatCompactTimeStr(str) {
+      // "845-1720" や "845～1720" を "8:45〜17:20" に整形
+      return str.replace(/\b(\d{1,2})(\d{2})\s*[-－〜～]\s*(\d{1,2})(\d{2})\b/g, "$1:$2〜$3:$4");
+    }
+
+    function sanitizeCandidatePhrase(text) {
+      if (!text) return "";
+      let s = String(text)
+        .replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+        .replace(/ＯＫ|ｏｋ/gi, "OK");
+
+      // 社内用語・B2B用語・請求・担当者・年齢制限・平均介護度・面接関連を含む文やフレーズを除外
+      const internalNgPattern = /(単価|請求|マージン|紹介料|手数料|粗利|担当者|営業|年齢制限|\d{2}歳(?:まで|以下|以上|前後)|平均介護度|介護度\s*\d|顔合わせ|職場見学|面接|書類選考|履歴書|職務経歴書|競合|他社|成約|決定|派遣先|指揮命令|抵触日|マージン|掛け率|キックバック|クレーム|退職|離職|穴埋め|欠員|増員|急募)/;
+      if (internalNgPattern.test(s)) return "";
+
+      // 「正看OK」「准看OK」「未経験OK」「車OK」などの「OK」を除去・整形
+      s = s
+        .replace(/正看\s*OK/g, "正看護師")
+        .replace(/准看\s*OK/g, "准看護師")
+        .replace(/初任者\s*OK/g, "初任者研修")
+        .replace(/実務者\s*OK/g, "実務者研修")
+        .replace(/介福\s*OK/g, "介護福祉士")
+        .replace(/無資格\s*OK/g, "無資格相談可")
+        .replace(/未経験\s*OK/g, "未経験相談可")
+        .replace(/ブランク\s*OK/g, "ブランク相談可")
+        .replace(/扶養内\s*OK/g, "扶養内相談可")
+        .replace(/Wワーク\s*OK|ダブルワーク\s*OK/gi, "Wワーク相談可")
+        .replace(/車通勤\s*OK|車\s*OK/g, "車通勤可")
+        .replace(/バイク\s*OK/g, "バイク通勤可")
+        .replace(/自転車\s*OK/g, "自転車通勤可")
+        .replace(/固定\s*OK/g, "固定相談可")
+        .replace(/相談\s*OK/g, "相談可")
+        .replace(/OK[！!。、・\s]*/g, "")
+        .replace(/[（(]\s*[)）]/g, "")
+        .trim();
+
+      s = formatCompactTimeStr(s);
+      // 記号だけのゴミや極端に短い無意味な文字を除外
+      if (!s || /^[-・、。:：\s/／]+$/.test(s)) return "";
+      return s;
+    }
+
+    function extractCandidateNotes(rawNotes) {
+      if (!rawNotes) return "";
+      const raw = String(rawNotes).trim();
+      if (!raw) return "";
+
+      // 許可する【】セクション（社内用セクションは一切拾わない）
+      const allowedHeaders = [
+        "必要な資格",
+        "経験要件",
+        "就業日数",
+        "就業曜日",
+        "シフト詳細",
+        "曜日固定可否",
+        "勤務時間",
+        "その他備考"
+      ];
+
+      const extractedItems = [];
+      const seen = new Set();
+
+      // 1. 【項目名】形式のブロックを解析
+      if (raw.includes("【")) {
+        const parts = raw.split(/(?=【[^】]+】)/);
+        for (const part of parts) {
+          const m = part.match(/^【([^】]+)】\s*([\s\S]*)$/);
+          if (!m) continue;
+          const header = m[1].trim();
+          const body = m[2].trim();
+          if (!body) continue;
+
+          if (allowedHeaders.includes(header)) {
+            const lines = body.split(/[\n\r]+/).map(l => sanitizeCandidatePhrase(l)).filter(Boolean);
+            if (lines.length > 0) {
+              const cleanedBody = lines.join(" / ");
+              const entry = `・${header}：${cleanedBody}`;
+              if (!seen.has(entry)) {
+                seen.add(entry);
+                extractedItems.push(entry);
+              }
+            }
+          }
+        }
+      }
+
+      // 2. 【】が無いフリーテキスト行からも求職者向け条件っぽい行だけ抽出
+      const freeLines = raw
+        .replace(/【[^】]+】[\s\S]*?(?=【|$)/g, "") // 既に処理した【】ブロックは除外
+        .split(/[\n\r]+/);
+
+      const candidateKeywordPattern = /(資格|初任者|実務者|介護福祉士|介福|正看護|准看護|正看|准看|ヘルパー|無資格|経験|未経験|ブランク|週\s*[1-7１-７]|シフト|曜日|固定|土日|休日|休み|勤務時間|\d{1,2}[:：]\d{2}|\d{3,4}\s*[-－〜～]\s*\d{3,4}|早番|早出|日勤|遅番|遅出|夜勤|休憩|残業|交通費|車通勤|マイカー|駐車場|バイク|自転車|駅|徒歩|制服|食事|扶養|ユニット|従来|フロア)/;
+
+      for (const line of freeLines) {
+        const trimmed = line.replace(/^[・•●■◆\-*\s]+/, "").trim();
+        if (!trimmed) continue;
+        if (!candidateKeywordPattern.test(trimmed)) continue;
+        const cleaned = sanitizeCandidatePhrase(trimmed);
+        if (cleaned && !seen.has(cleaned)) {
+          seen.add(cleaned);
+          extractedItems.push(`・${cleaned}`);
+        }
+      }
+
+      return extractedItems.join("\n");
+    }
+
     function formatShortFacilityType(rawType) {
       const t = String(rawType || "");
       if (t.includes("介護老人福祉施設") || t.includes("特養")) return "特養";
@@ -1054,7 +1183,10 @@
     function extractWorkHoursSummary(notes, shifts) {
       const shiftStr = (shifts && shifts.length > 0) ? shifts.join("・") : "日勤";
       if (!notes) return `${shiftStr} (${shiftStr})`;
-      const timeMatches = notes.match(/(?:早番|早出|日勤|遅番|遅出|夜勤)?[：:・\s]*\d{1,2}[:：時]\d{0,2}\s*[〜～\-－ー]\s*(?:翌)?\d{1,2}[:：時]\d{0,2}/g);
+      const normNotes = formatCompactTimeStr(
+        String(notes).replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+      );
+      const timeMatches = normNotes.match(/(?:早番|早出|日勤|遅番|遅出|夜勤)?[：:・\s]*\d{1,2}[:：時]\d{0,2}\s*[〜～\-－ー]\s*(?:翌)?\d{1,2}[:：時]\d{0,2}/g);
       if (timeMatches && timeMatches.length > 0) {
         const cleaned = Array.from(new Set(timeMatches.map(s => s.trim()))).slice(0, 3).join(" / ");
         return `${shiftStr} (${cleaned})`;
@@ -1083,16 +1215,58 @@
         if (normCity && normAddr.startsWith(normCity)) addr = addr.slice(normCity.length);
         const area = `${pref}${city}${addr}`;
         const workTime = extractWorkHoursSummary(j.notes, j.shifts);
-        return `■ ${idx + 1}. ${j.facility}\n施設形態：${shortType}\nエリア：${area}\n勤務時間：${workTime}\n―――`;
+        const cleanNotes = extractCandidateNotes(j.notes);
+        const notesLine = cleanNotes ? `\n備考：\n${cleanNotes}` : "";
+        return `■ ${idx + 1}. ${j.facility}\n施設形態：${shortType}\nエリア：${area}\n勤務時間：${workTime}${notesLine}\n―――`;
       }).join("\n\n");
 
       const footer = `\n\n※時給相場：介護 1,500〜1,800円程度／看護 2,200〜2,450円程度（資格・経験により変動します）\n※勤務時間やシフトは直近のオーダー内容です。ご状況に合わせて相談・調整も可能ですのでお気軽にどうぞ！\n\n気になる案件がございましたら下記をご返信ください📩\n\n【ご返信テンプレート】\n気になる案件：\n見学希望日：\n\n※応募者多数のため、2〜3件エントリーがおすすめです！`;
 
       const text = header + body + footer;
 
-      navigator.clipboard.writeText(text).then(() => {
-        showToast(`${targets.length}件の案件をコピーしました`);
-      });
+      if (targets.length === 0) {
+        showToast("選択された案件データが見つかりませんでした。再選択してください");
+        return;
+      }
+
+      fallbackCopyText(text, targets.length);
+    }
+
+    function fallbackCopyText(text, count) {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(() => {
+          showToast(`${count}件の案件をコピーしました`);
+        }).catch(() => {
+          execTextareaCopy(text, count);
+        });
+      } else {
+        execTextareaCopy(text, count);
+      }
+    }
+
+    function execTextareaCopy(text, count) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.top = "0";
+      ta.style.left = "0";
+      ta.style.width = "2em";
+      ta.style.height = "2em";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try {
+        const ok = document.execCommand("copy");
+        if (ok) {
+          showToast(`${count}件の案件をコピーしました`);
+        } else {
+          prompt("以下のテキストをコピーしてください（Ctrl+C / Cmd+C）:", text);
+        }
+      } catch (err) {
+        prompt("以下のテキストをコピーしてください（Ctrl+C / Cmd+C）:", text);
+      }
+      document.body.removeChild(ta);
     }
 
     function resetFilters() {
@@ -1301,7 +1475,7 @@
           const shiftsRaw = pickCol(r, ["シフト", "勤務シフト", "時間帯", "shifts"]);
           const initialShifts = shiftsRaw ? shiftsRaw.split(/[,、・\/\s]+/).filter(Boolean) : [];
           const notes = pickCol(r, ["備考", "詳細", "メモ", "案件詳細", "notes", "memo"]);
-          const date = pickCol(r, ["獲得日時", "登録日時", "更新日時", "BO取得日時", "作成日時", "date", "created_at"]);
+          const date = pickCol(r, ["BO取得日時", "獲得日時", "取得日時", "作成日時", "登録日時", "更新日時", "date", "created_at"]);
           const coords = lookupCoordsFromDict(pref, city, addr);
           return enrichJobData({
             id: `job_${idx}`,
@@ -1320,7 +1494,9 @@
           }, idx);
         });
 
-        const mergedJobs = mergeDuplicateJobs(parsedJobs);
+        const prevCount = allJobs.length;
+        const combinedRaw = [...allJobs, ...parsedJobs];
+        const mergedJobs = mergeDuplicateJobs(combinedRaw);
         allJobs = mergedJobs;
         updateHeaderCounts();
         renderPrefPills();
@@ -1328,16 +1504,16 @@
 
         pct.textContent = "70%";
         bar.style.width = "70%";
-        title.textContent = `${mergedJobs.length}件に統合しました（元データ ${parsedJobs.length}件）`;
+        title.textContent = `蓄積統合完了：全${mergedJobs.length}件（既存${prevCount}件 + 新規CSV ${parsedJobs.length}件）`;
 
         if (token) {
           title.textContent = "GitHubへ自動反映中...";
-          const ok = await pushFileToGithub("jobs.json", mergedJobs, token, "Webアプリ経由でjobs.jsonを更新する");
+          const ok = await pushFileToGithub("jobs.json", mergedJobs, token, "Webアプリ経由でjobs.jsonを蓄積更新する");
           pct.textContent = "100%";
           bar.style.width = "100%";
           if (ok) {
-            title.textContent = "GitHubへの自動反映が完了しました！";
-            detail.textContent = `重複統合後の${mergedJobs.length}件（元${parsedJobs.length}件・高精度座標付き）を同期しました。`;
+            title.textContent = "GitHubへの蓄積・同期が完了しました！";
+            detail.textContent = `既存データと統合し、全${mergedJobs.length}件（新規CSV ${parsedJobs.length}件分をマージ）をGitHubへ保存しました。`;
           } else {
             title.textContent = "GitHub同期エラー（画面には反映済み）";
             detail.textContent = "トークン権限（repo）またはリポジトリ名を確認してください。";
@@ -1345,7 +1521,7 @@
         } else {
           pct.textContent = "100%";
           bar.style.width = "100%";
-          detail.textContent = "画面に反映しました（※GitHubにも保存する場合は上の「GitHub自動更新設定」にトークンを入力してください）。";
+          detail.textContent = `既存${prevCount}件に新規CSV分を蓄積統合しました（全${mergedJobs.length}件）。※GitHubにも保存する場合は上の「GitHub自動更新設定」にトークンを入力してください。`;
         }
       });
     }
