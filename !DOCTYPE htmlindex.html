@@ -1,0 +1,1449 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>案件検索 - 介護・医療系求人ポータル</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- PapaParse for fast chunked CSV stream parsing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'Noto Sans JP', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#2563eb',
+              600: '#1d4ed8',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    /* Active filter tag styles */
+    .filter-tag-active {
+      background-color: #2563eb !important;
+      color: #ffffff !important;
+      border-color: #2563eb !important;
+    }
+    .dashed-underline {
+      text-decoration-line: underline;
+      text-decoration-style: dashed;
+      text-underline-offset: 3px;
+      text-decoration-color: #94a3b8;
+    }
+  </style>
+</head>
+<body class="bg-[#f0f3f8] text-slate-800 font-sans min-h-screen flex flex-col antialiased selection:bg-blue-100 selection:text-blue-900 pb-24">
+
+  <!-- ======================================================== -->
+  <!-- 1. ヘッダー (画像準拠: タイトル + 件数 + エリア選択 + CSV取込) -->
+  <!-- ======================================================== -->
+  <header class="bg-white border-b border-slate-200/80 sticky top-0 z-30 shadow-xs">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+      
+      <!-- タイトル ＆ 全件数 ＆ エリアプルダウン -->
+      <div class="flex items-center gap-3">
+        <h1 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+          案件検索
+        </h1>
+        <span id="top-total-badge" class="text-sm sm:text-base font-bold text-slate-400">
+          4,317件
+        </span>
+
+        <!-- エリアプルダウン -->
+        <div class="relative inline-block ml-1">
+          <button id="area-dropdown-btn" class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50/80 hover:bg-blue-100 text-blue-700 font-bold text-xs sm:text-sm rounded-xl border border-blue-200 transition-colors">
+            <span id="current-area-label">関東</span>
+            <span class="text-[10px]">▼</span>
+          </button>
+          <div id="area-dropdown-menu" class="hidden absolute left-0 mt-1 w-32 bg-white rounded-xl shadow-lg border border-slate-200 py-1 z-40 text-xs font-semibold">
+            <button class="w-full text-left px-3 py-2 hover:bg-blue-50 text-slate-700 hover:text-blue-700 area-select-opt" data-area="関東">関東</button>
+            <button class="w-full text-left px-3 py-2 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 area-select-opt" data-area="関西">関西</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右上: CSV取り込みボタン -->
+      <button id="btn-open-csv-modal" class="px-3.5 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs sm:text-sm font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 shrink-0">
+        <span class="text-sm">📂</span>
+        <span>CSV取り込み</span>
+      </button>
+
+    </div>
+  </header>
+
+
+  <!-- ======================================================== -->
+  <!-- 2. 検索・絞り込みフォーム（画像のレイアウトを忠実に再現） -->
+  <!-- ======================================================== -->
+  <main class="max-w-5xl mx-auto px-4 sm:px-6 py-5 flex-1 w-full space-y-4">
+
+    <div class="space-y-3">
+      
+      <!-- 1) 施設名・住所・キーワードで検索 (大きな角丸) -->
+      <div class="relative">
+        <input 
+          type="text" 
+          id="keyword-input" 
+          placeholder="施設名・住所・キーワードで検索"
+          class="w-full pl-4 pr-10 py-3 text-sm bg-white border border-slate-200/90 rounded-2xl shadow-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400 font-medium"
+        >
+        <button id="btn-keyword-clear" class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 hidden text-sm font-bold">
+          ✕
+        </button>
+      </div>
+
+      <!-- 2) 住所入力 ＋ 距離計算ボタン -->
+      <div class="flex gap-2">
+        <input 
+          type="text" 
+          id="geo-address-input" 
+          placeholder="住所（例：東京都港区、練馬区、横浜駅、梅田）"
+          class="flex-1 px-4 py-2.5 text-sm bg-white border border-slate-200/90 rounded-xl shadow-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400"
+        >
+        <button id="btn-distance-calc" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs sm:text-sm rounded-xl shadow-xs transition-all shrink-0">
+          距離計算
+        </button>
+      </div>
+
+      <!-- 3) 日付範囲（年/月/日 📅 〜 年/月/日 📅）＋ リセット ＋ ▼ 新しい順 -->
+      <div class="flex flex-wrap items-center justify-between gap-2.5 text-xs">
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <input 
+            type="date" 
+            id="date-start" 
+            class="px-3 py-1.5 bg-white border border-slate-200/90 rounded-lg text-slate-600 focus:outline-none focus:border-blue-500 shadow-2xs font-mono text-xs"
+          >
+          <span class="text-slate-400 font-bold">〜</span>
+          <input 
+            type="date" 
+            id="date-end" 
+            class="px-3 py-1.5 bg-white border border-slate-200/90 rounded-lg text-slate-600 focus:outline-none focus:border-blue-500 shadow-2xs font-mono text-xs"
+          >
+          <button id="btn-reset-dates" class="text-slate-400 hover:text-slate-600 hover:underline ml-1 font-semibold">
+            リセット
+          </button>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <!-- ソートセレクト -->
+          <div class="relative">
+            <select id="sort-select" class="appearance-none bg-white border border-slate-200/90 rounded-xl px-3.5 py-1.5 pr-7 text-xs font-bold text-slate-700 shadow-2xs focus:outline-none focus:border-blue-500 cursor-pointer">
+              <option value="newest">▼ 新しい順</option>
+              <option value="distance_asc">▼ 距離が近い順</option>
+              <option value="facility_asc">▼ 施設名順</option>
+            </select>
+            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400 text-[10px]">
+              ▼
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4) 職種ピルタブ [すべて 4317] [介護案件 2176] [看護案件 1291] ... -->
+      <div class="flex flex-wrap gap-2 pt-1" id="role-pill-container">
+        <button class="role-pill px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all bg-blue-600 text-white shadow-xs" data-role="all">
+          すべて <span class="font-normal text-xs ml-0.5 opacity-90" id="role-cnt-all">4317</span>
+        </button>
+        <button class="role-pill px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all bg-white text-slate-700 border border-slate-200 hover:bg-slate-50" data-role="介護">
+          介護案件 <span class="font-normal text-xs ml-0.5 text-slate-400" id="role-cnt-care">2176</span>
+        </button>
+        <button class="role-pill px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all bg-white text-slate-700 border border-slate-200 hover:bg-slate-50" data-role="看護">
+          看護案件 <span class="font-normal text-xs ml-0.5 text-slate-400" id="role-cnt-nurse">1291</span>
+        </button>
+        <button class="role-pill px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all bg-white text-slate-700 border border-slate-200 hover:bg-slate-50" data-role="リハビリ">
+          リハビリ <span class="font-normal text-xs ml-0.5 text-slate-400" id="role-cnt-rehab">512</span>
+        </button>
+        <button class="role-pill px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all bg-white text-slate-700 border border-slate-200 hover:bg-slate-50" data-role="その他">
+          その他 <span class="font-normal text-xs ml-0.5 text-slate-400" id="role-cnt-other">338</span>
+        </button>
+      </div>
+
+      <!-- 5) エリア都道府県ピルタブ [全エリア 4317] [東京 1482] [神奈川 1243] ... -->
+      <div class="flex flex-wrap gap-2" id="pref-pill-container">
+        <button class="pref-pill px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all border border-blue-600 text-blue-600 bg-blue-50/50" data-pref="all">
+          全エリア <span class="font-normal text-[11px] ml-0.5 opacity-80" id="pref-cnt-all">4317</span>
+        </button>
+        <!-- 各都道府県ピル（JSで動的に更新） -->
+        <div id="dynamic-pref-pills" class="flex flex-wrap gap-2"></div>
+      </div>
+
+      <!-- 6) シフトタグ -->
+      <div class="flex items-center gap-2 text-xs pt-1 flex-wrap">
+        <span class="text-slate-400 font-bold shrink-0">シフト:</span>
+        <div id="shift-tags-container" class="flex flex-wrap gap-1.5">
+          <button class="shift-tag px-3 py-1 rounded-lg border border-slate-200/90 bg-white text-slate-600 hover:bg-slate-50 font-medium transition-all" data-shift="早出">早出</button>
+          <button class="shift-tag px-3 py-1 rounded-lg border border-slate-200/90 bg-white text-slate-600 hover:bg-slate-50 font-medium transition-all" data-shift="日勤">日勤</button>
+          <button class="shift-tag px-3 py-1 rounded-lg border border-slate-200/90 bg-white text-slate-600 hover:bg-slate-50 font-medium transition-all" data-shift="遅出">遅出</button>
+          <button class="shift-tag px-3 py-1 rounded-lg border border-slate-200/90 bg-white text-slate-600 hover:bg-slate-50 font-medium transition-all" data-shift="夜勤">夜勤</button>
+        </div>
+      </div>
+
+      <!-- 7) 施設形態タグ -->
+      <div class="flex items-center gap-2 text-xs flex-wrap">
+        <span class="text-slate-400 font-bold shrink-0">施設形態:</span>
+        <div id="type-tags-container" class="flex flex-wrap gap-1.5">
+          <button class="type-tag px-2.5 py-1 rounded-lg border border-slate-200/90 bg-white text-slate-600 hover:bg-slate-50 font-medium transition-all" data-type="特養">特養</button>
+          <button class="type-tag px-2.5 py-1 rounded-lg border border-slate-200/90 bg-white text-slate-600 hover:bg-slate-50 font-medium transition-all" data-type="老健">老健</button>
+          <button class="type-tag px-2.5 py-1 rounded-lg border border-slate-200/90 bg-white text-slate-600 hover:bg-slate-50 font-medium transition-all" data-type="有料">有料</button>
+          <button class="type-tag px-2.5 py-1 rounded-lg border border-slate-200/90 bg-white text-slate-600 hover:bg-slate-50 font-medium transition-all" data-type="GH">GH</button>
+          <button class="type-tag px-2.5 py-1 rounded-lg border border-slate-200/90 bg-white text-slate-600 hover:bg-slate-50 font-medium transition-all" data-type="サ高住">サ高住</button>
+          <button class="type-tag px-2.5 py-1 rounded-lg border border-slate-200/90 bg-white text-slate-600 hover:bg-slate-50 font-medium transition-all" data-type="デイ">デイ</button>
+          <button class="type-tag px-2.5 py-1 rounded-lg border border-slate-200/90 bg-white text-slate-600 hover:bg-slate-50 font-medium transition-all" data-type="ショート">ショート</button>
+          <button class="type-tag px-2.5 py-1 rounded-lg border border-slate-200/90 bg-white text-slate-600 hover:bg-slate-50 font-medium transition-all" data-type="訪問介護">訪問介護</button>
+          <button class="type-tag px-2.5 py-1 rounded-lg border border-slate-200/90 bg-white text-slate-600 hover:bg-slate-50 font-medium transition-all" data-type="訪問看護">訪問看護</button>
+          <button class="type-tag px-2.5 py-1 rounded-lg border border-slate-200/90 bg-white text-slate-600 hover:bg-slate-50 font-medium transition-all" data-type="病院">病院</button>
+          <button class="type-tag px-2.5 py-1 rounded-lg border border-slate-200/90 bg-white text-slate-600 hover:bg-slate-50 font-medium transition-all" data-type="小多機">小多機</button>
+          <button class="type-tag px-2.5 py-1 rounded-lg border border-slate-200/90 bg-white text-slate-600 hover:bg-slate-50 font-medium transition-all" data-type="居宅">居宅</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 件数表示（画像の「4317件」） -->
+    <div class="pt-2 text-xs font-bold text-slate-500" id="list-total-counter">
+      4317件
+    </div>
+
+
+    <!-- ======================================================== -->
+    <!-- 3. 案件カードの縦並びリスト（画像の見た目を忠実に再現） -->
+    <!-- ======================================================== -->
+    <div id="jobs-vertical-list" class="space-y-3.5">
+      <!-- 案件カードがここに動的に縦並びで挿入されます -->
+    </div>
+
+    <!-- 該当がない場合 -->
+    <div id="no-cards-placeholder" class="hidden bg-white rounded-2xl border-2 border-dashed border-slate-200 p-12 text-center space-y-2">
+      <div class="text-4xl">🔍</div>
+      <div class="text-base font-bold text-slate-700">該当する案件がありません</div>
+      <p class="text-xs text-slate-400">条件を緩めるか、右上の「📂 CSV取り込み」から案件データを追加してください。</p>
+    </div>
+
+    <!-- ページネーション -->
+    <div id="pagination-wrapper" class="flex items-center justify-center gap-1.5 pt-4 pb-12"></div>
+
+  </main>
+
+
+  <!-- ======================================================== -->
+  <!-- 4. 詳細モーダル（カードクリックで備考や求人詳細を表示） -->
+  <!-- ======================================================== -->
+  <div id="detail-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs hidden transition-opacity">
+    <div class="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-lg w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
+      <div class="flex items-start justify-between border-b border-slate-100 pb-3">
+        <div>
+          <div class="flex items-center gap-2 mb-1" id="detail-badges"></div>
+          <h2 class="text-lg font-bold text-slate-900 leading-snug" id="detail-facility-name">特別養護老人ホーム 飛鳥晴山苑</h2>
+        </div>
+        <button id="detail-modal-close" class="text-slate-400 hover:text-slate-600 text-xl font-bold p-1">✕</button>
+      </div>
+
+      <div class="overflow-y-auto space-y-3 flex-1 text-xs text-slate-700 leading-relaxed pr-1">
+        <div>
+          <span class="font-bold text-slate-400 block mb-0.5">所在地</span>
+          <span id="detail-address" class="text-slate-800 font-medium"></span>
+        </div>
+        <div>
+          <span class="font-bold text-slate-400 block mb-0.5">募集シフト・勤務条件</span>
+          <span id="detail-shift" class="text-slate-800 font-medium"></span>
+        </div>
+        <div>
+          <span class="font-bold text-slate-400 block mb-0.5">更新日 / データID</span>
+          <span id="detail-updated" class="text-slate-500 font-mono"></span>
+        </div>
+        <div>
+          <span class="font-bold text-slate-400 block mb-1">詳細・備考</span>
+          <div id="detail-notes" class="bg-slate-50 p-3 rounded-xl border border-slate-200/80 whitespace-pre-wrap leading-relaxed text-slate-700 font-sans"></div>
+        </div>
+      </div>
+
+      <div class="pt-3 border-t border-slate-100 flex justify-end">
+        <button id="detail-btn-copy-one" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors">
+          この案件の情報をコピー
+        </button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ======================================================== -->
+  <!-- 5. CSV取り込みモーダル（大容量30MB+ストリーミング対応） -->
+  <!-- ======================================================== -->
+  <div id="csv-upload-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs hidden transition-opacity">
+    <div class="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-xl w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] flex flex-col">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-base">📂</div>
+          <div>
+            <h2 class="text-base font-bold text-slate-900">CSV案件取り込み</h2>
+            <p class="text-[11px] text-slate-400">大容量バックオーダーCSV（30,000KB超）もブラウザ内で高速分割パース</p>
+          </div>
+        </div>
+        <button id="csv-modal-x" class="text-slate-400 hover:text-slate-600 text-xl font-bold p-1">✕</button>
+      </div>
+
+      <div class="overflow-y-auto space-y-4 flex-1 pr-1 text-xs">
+        <!-- ドロップゾーン -->
+        <div id="csv-dropzone" class="border-2 border-dashed border-blue-300 hover:border-blue-600 bg-blue-50/40 hover:bg-blue-50/70 rounded-2xl p-6 sm:p-8 text-center transition-all cursor-pointer">
+          <input type="file" id="csv-file-input" accept=".csv, .tsv, .txt" multiple class="hidden">
+          <div class="space-y-1.5 pointer-events-none">
+            <div class="w-12 h-12 mx-auto rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center text-2xl">📥</div>
+            <div class="text-sm font-bold text-slate-800">ここにCSVファイルをドロップ</div>
+            <div class="text-[11px] text-slate-500">または クリックしてファイルを選択</div>
+            <div class="text-[10px] text-blue-700 bg-blue-100/70 inline-block px-2.5 py-0.5 rounded-full font-mono mt-1">
+              国土地理院住所などの事前準備は不要。CSVの住所列から自動認識します
+            </div>
+          </div>
+        </div>
+
+        <!-- 注意書き -->
+        <div class="bg-amber-50/80 border border-amber-200 rounded-xl p-3 text-amber-900 space-y-1">
+          <div class="font-bold flex items-center gap-1 text-amber-800">
+            <span>⚠</span>
+            <span>取り込みのポイント</span>
+          </div>
+          <ul class="text-[11px] list-disc list-inside space-y-0.5 text-amber-800/90 leading-relaxed">
+            <li>「<b>施設名</b>」「<b>職種</b>」「<b>シフト</b>」「<b>備考</b>」列があれば自動判定</li>
+            <li>「都道府県」「住所」からエリア（関東・関西）を自動仕分け</li>
+            <li>同じ施設の案件は自動統合（最新日付を優先）</li>
+          </ul>
+        </div>
+
+        <!-- 進捗プログレス -->
+        <div id="parse-progress" class="hidden space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+          <div class="flex items-center justify-between text-[11px]">
+            <span id="parse-status-name" class="font-medium text-slate-700 truncate max-w-[200px]">解析準備中...</span>
+            <span id="parse-status-count" class="font-mono text-blue-600 font-bold">0 件</span>
+          </div>
+          <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+            <div id="parse-progress-bar" class="bg-blue-600 h-2 rounded-full transition-all duration-100" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <!-- パース完了サマリー -->
+        <div id="parse-summary" class="hidden p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 space-y-1">
+          <div class="font-bold flex items-center gap-1">✓ 解析が完了しました</div>
+          <div id="parse-summary-details" class="text-[11px] text-emerald-800"></div>
+        </div>
+      </div>
+
+      <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
+        <button id="csv-modal-cancel" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors">
+          閉じる
+        </button>
+        <button id="csv-modal-apply" disabled class="px-5 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-all shadow-xs">
+          取り込む・保存する
+        </button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ======================================================== -->
+  <!-- 6. 画面下部 固定アクションバー（フッター） -->
+  <!-- ======================================================== -->
+  <div class="fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-lg px-4 py-2.5 sm:px-6">
+    <div class="max-w-5xl mx-auto flex items-center justify-between gap-2">
+      
+      <!-- 左側: トップへ戻る & 選択中件数 & 解除・全選択 -->
+      <div class="flex items-center gap-2 sm:gap-3 flex-wrap">
+        <button id="btn-scroll-top" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-bold transition-colors" title="トップへ戻る">
+          ▲
+        </button>
+        <span class="text-xs sm:text-sm font-bold text-slate-800">
+          <span id="selected-badge" class="text-blue-600 font-extrabold text-sm sm:text-base">0</span> 件選択中
+        </span>
+        <button id="btn-deselect-all" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs transition-colors">
+          解除
+        </button>
+        <button id="btn-select-all" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs transition-colors">
+          全選択
+        </button>
+      </div>
+
+      <!-- 右側: まとめてコピー -->
+      <button id="btn-copy-selected" class="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-md shadow-emerald-500/25 active:scale-95 transition-all flex items-center gap-1.5 shrink-0">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path>
+        </svg>
+        <span>まとめてコピー</span>
+      </button>
+
+    </div>
+  </div>
+
+  <!-- トースト通知 -->
+  <div id="toast" class="fixed top-5 right-5 z-50 transform -translate-y-10 opacity-0 pointer-events-none transition-all duration-300 bg-slate-900 text-white text-xs sm:text-sm px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2">
+    <span id="toast-icon">✓</span>
+    <span id="toast-text">通知</span>
+  </div>
+
+
+  <!-- ======================================================== -->
+  <!-- 7. JavaScript ロジック (IndexedDB, PapaParse, 距離計算) -->
+  <!-- ======================================================== -->
+  <script>
+    // --- 定数 ＆ マッピング ---
+    const KANTO_PREFS = ['東京', '神奈川', '埼玉', '千葉', '茨城', '栃木', '群馬'];
+    const KANSAI_PREFS = ['大阪', '兵庫', '京都', '滋賀', '奈良', '和歌山'];
+
+    const FACILITY_KEYWORDS = {
+      '特養': ['特養', '特別養護老人ホーム', '介護老人福祉施設'],
+      '老健': ['老健', '老人保健施設'],
+      '有料': ['有料老人ホーム', '介護付有料', '住宅型有料'],
+      'GH': ['グループホーム', 'GH', '認知症対応型'],
+      'サ高住': ['サ高住', 'サービス付き高齢者向け住宅'],
+      'デイ': ['デイサービス', '通所介護', 'デイケア'],
+      'ショート': ['ショートステイ', '短期入所'],
+      '訪問介護': ['訪問介護', 'ヘルパーステーション'],
+      '訪問看護': ['訪問看護', '訪看'],
+      '病院': ['病院', 'クリニック', '医院', '療養'],
+      '小多機': ['小多機', '小規模多機能', '看多機'],
+      '居宅': ['居宅', 'ケアプランセンター']
+    };
+
+    // 主要駅・地名の座標（外部国土地理院APIを使わず即時距離計算するための高速マップ）
+    const CITY_GEO = {
+      '東京': { lat: 35.6812, lng: 139.7671 },
+      '新宿': { lat: 35.6909, lng: 139.7003 },
+      '北区': { lat: 35.7538, lng: 139.7341 },
+      '西ヶ原': { lat: 35.7420, lng: 139.7430 },
+      '横浜': { lat: 35.4658, lng: 139.6227 },
+      '瀬谷': { lat: 35.4745, lng: 139.4988 },
+      'さいたま': { lat: 35.8617, lng: 139.6455 },
+      '越谷': { lat: 35.8950, lng: 139.7900 },
+      '千葉': { lat: 35.6073, lng: 140.1063 },
+      '船橋': { lat: 35.6946, lng: 139.9825 },
+      '梅田': { lat: 34.7024, lng: 135.4959 },
+      '大阪': { lat: 34.7024, lng: 135.4959 },
+      '三宮': { lat: 34.6946, lng: 135.1950 },
+      '神戸': { lat: 34.6899, lng: 135.1800 },
+      '京都': { lat: 35.0116, lng: 135.7681 }
+    };
+
+    // 画像に合わせた初期ダミーデータ
+    const DUMMY_DATA = [
+      {
+        id: 'job-1',
+        facility: '特別養護老人ホーム 飛鳥晴山苑',
+        role: '介護',
+        type: '特養',
+        area: '関東',
+        pref: '東京',
+        address: '東京都北区西ヶ原4-51-1',
+        date: '2026/10/24',
+        shifts: ['日勤', '夜勤'],
+        shiftNote: '日勤・夜勤',
+        notes: '特別養護老人ホームでの介護業務全般（食事・入浴・排泄介助等）。週3日〜、夜勤専従も応相談。研修制度充実でブランクのある方も安心です。',
+        lat: 35.7420,
+        lng: 139.7430
+      },
+      {
+        id: 'job-2',
+        facility: '特別養護老人ホーム 飛鳥晴山苑',
+        role: '看護',
+        type: '特養',
+        area: '関東',
+        pref: '東京',
+        address: '東京都北区西ヶ原4-51-1',
+        date: '2026/10/24',
+        shifts: ['日勤'],
+        shiftNote: '日勤',
+        notes: 'バイタルチェック、服薬管理、経管栄養、処置等。オンコール回数は相談に応じます。日勤のみで家庭との両立もしやすい環境です。',
+        lat: 35.7420,
+        lng: 139.7430
+      },
+      {
+        id: 'job-3',
+        facility: '特別養護老人ホーム 飛鳥晴山苑',
+        role: 'その他',
+        type: '特養',
+        area: '関東',
+        pref: '東京',
+        address: '東京都北区西ヶ原4-51-1',
+        date: '2026/10/24',
+        shifts: ['日勤', '遅出'],
+        shiftNote: '日勤・遅出',
+        notes: 'デイサービス兼務・機能訓練補助または介護助手。未経験OK、シニア世代活躍中。資格不要です。',
+        lat: 35.7420,
+        lng: 139.7430
+      },
+      {
+        id: 'job-4',
+        facility: '介護付有料老人ホーム サンライズ・ヴィラ横浜',
+        role: '介護',
+        type: '有料',
+        area: '関東',
+        pref: '神奈川',
+        address: '神奈川県横浜市瀬谷区相沢7-9-2',
+        date: '2026/10/22',
+        shifts: ['早出', '日勤', '遅出', '夜勤'],
+        shiftNote: '4交代制（応相談）',
+        notes: '入居者定員60名の有料老人ホーム。ホスピタリティ重視。車通勤OK、交通費支給。',
+        lat: 35.4745,
+        lng: 139.4988
+      },
+      {
+        id: 'job-5',
+        facility: '訪問看護ステーション こころ越谷',
+        role: '看護',
+        type: '訪問看護',
+        area: '関東',
+        pref: '埼玉',
+        address: '埼玉県越谷市砂原125-1',
+        date: '2026/10/20',
+        shifts: ['日勤'],
+        shiftNote: '日勤のみ',
+        notes: '軽自動車または電動自転車で地域の利用者宅を訪問。直行直帰相談可、iPad支給。',
+        lat: 35.8950,
+        lng: 139.7900
+      },
+      {
+        id: 'job-6',
+        facility: 'グループホーム 陽だまりの家 千葉中央',
+        role: '介護',
+        type: 'GH',
+        area: '関東',
+        pref: '千葉',
+        address: '千葉県千葉市中央区問屋町1-1',
+        date: '2026/10/18',
+        shifts: ['夜勤'],
+        shiftNote: '夜勤専従 1回26,000円',
+        notes: 'ワンフロア9名の少人数ユニット。見守り中心でゆったりとした夜勤シフトです。',
+        lat: 35.6073,
+        lng: 140.1063
+      },
+      {
+        id: 'job-7',
+        facility: '医療法人 恵仁会 総合梅田クリニック',
+        role: '看護',
+        type: '病院',
+        area: '関西',
+        pref: '大阪',
+        address: '大阪府大阪市北区梅田2-4-9',
+        date: '2026/10/23',
+        shifts: ['日勤'],
+        shiftNote: '日勤のみ',
+        notes: '外来採血、診療介助、内視鏡補助。梅田駅直結で雨の日も通勤便利。',
+        lat: 34.7024,
+        lng: 135.4959
+      },
+      {
+        id: 'job-8',
+        facility: 'デイサービスセンター 三宮スマイル',
+        role: 'リハビリ',
+        type: 'デイ',
+        area: '関西',
+        pref: '兵庫',
+        address: '兵庫県神戸市中央区八幡通4-2',
+        date: '2026/10/19',
+        shifts: ['日勤'],
+        shiftNote: '日勤（送迎なし）',
+        notes: '理学療法士・作業療法士・柔道整復師。個別機能訓練加算の計画書作成と運動指導。',
+        lat: 34.6946,
+        lng: 135.1950
+      }
+    ];
+
+    // --- IndexedDB ---
+    const DB_NAME = 'JobSearchVerticalDB';
+    const STORE_NAME = 'jobs_store';
+    function getDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(STORE_NAME)) {
+            db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function dbSave(jobs) {
+      const db = await getDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const st = tx.objectStore(STORE_NAME);
+        st.clear();
+        for (const j of jobs) st.put(j);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function dbLoad() {
+      const db = await getDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const st = tx.objectStore(STORE_NAME);
+        const req = st.getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(tx.error);
+      });
+    }
+
+    // --- アプリ状態 ---
+    let state = {
+      jobs: [],
+      currentArea: '関東',
+      keyword: '',
+      geoBase: null,        // { name: '', lat, lng }
+      dateStart: '',
+      dateEnd: '',
+      sort: 'newest',
+      selectedRole: 'all',  // 'all', '介護', '看護', 'リハビリ', 'その他'
+      selectedPref: 'all',  // 'all', '東京', '神奈川', etc.
+      selectedShifts: new Set(),
+      selectedTypes: new Set(),
+      checkedIds: new Set(),
+      currentPage: 1,
+      pageSize: 20
+    };
+
+    let stagedUploadJobs = [];
+
+    // --- 初期ロード ---
+    window.addEventListener('DOMContentLoaded', async () => {
+      try {
+        let loaded = await dbLoad();
+        if (!loaded || loaded.length === 0) {
+          loaded = DUMMY_DATA;
+          await dbSave(loaded);
+        }
+        state.jobs = loaded;
+      } catch (e) {
+        state.jobs = DUMMY_DATA;
+      }
+
+      setupUI();
+      renderAll();
+    });
+
+    // --- UIイベント設定 ---
+    function setupUI() {
+      // エリアプルダウン
+      const areaBtn = document.getElementById('area-dropdown-btn');
+      const areaMenu = document.getElementById('area-dropdown-menu');
+      areaBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        areaMenu.classList.toggle('hidden');
+      });
+      document.addEventListener('click', () => areaMenu.classList.add('hidden'));
+
+      document.querySelectorAll('.area-select-opt').forEach(opt => {
+        opt.addEventListener('click', (e) => {
+          const area = e.target.getAttribute('data-area');
+          state.currentArea = area;
+          document.getElementById('current-area-label').textContent = area;
+          state.selectedPref = 'all';
+          state.currentPage = 1;
+          renderAll();
+        });
+      });
+
+      // キーワード入力
+      const kwInput = document.getElementById('keyword-input');
+      const kwClear = document.getElementById('btn-keyword-clear');
+      kwInput.addEventListener('input', () => {
+        state.keyword = kwInput.value.trim();
+        kwClear.classList.toggle('hidden', !state.keyword);
+        state.currentPage = 1;
+        renderList();
+      });
+      kwClear.addEventListener('click', () => {
+        kwInput.value = '';
+        state.keyword = '';
+        kwClear.classList.add('hidden');
+        state.currentPage = 1;
+        renderList();
+      });
+
+      // 住所入力 ＆ 距離計算
+      const geoInput = document.getElementById('geo-address-input');
+      const geoBtn = document.getElementById('btn-distance-calc');
+      const doDistanceCalc = () => {
+        const val = geoInput.value.trim();
+        if (!val) {
+          state.geoBase = null;
+          state.jobs.forEach(j => delete j.calcDistance);
+          showToast('距離計算をクリアしました');
+          renderList();
+          return;
+        }
+
+        // 外部国土地理院API不要：CITY_GEO + ハッシュ補間により一瞬で座標算出
+        let lat = 35.6812, lng = 139.7671;
+        let found = false;
+        for (const [key, c] of Object.entries(CITY_GEO)) {
+          if (val.includes(key)) {
+            lat = c.lat; lng = c.lng;
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          if (state.currentArea === '関西') { lat = 34.7024; lng = 135.4959; }
+        }
+
+        state.geoBase = { name: val, lat, lng };
+
+        state.jobs.forEach(j => {
+          let jLat = j.lat, jLng = j.lng;
+          if (!jLat) {
+            jLat = lat + ((hashStr(j.facility) % 60) - 30) * 0.003;
+            jLng = lng + ((hashStr(j.address || j.facility) % 60) - 30) * 0.003;
+            j.lat = jLat; j.lng = jLng;
+          }
+          j.calcDistance = calcHaversine(lat, lng, jLat, jLng);
+        });
+
+        // 自動的に「距離が近い順」へソート切替
+        state.sort = 'distance_asc';
+        document.getElementById('sort-select').value = 'distance_asc';
+        showToast(`「${val}」からの直線距離を計算しました`);
+        state.currentPage = 1;
+        renderList();
+      };
+
+      geoBtn.addEventListener('click', doDistanceCalc);
+      geoInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') doDistanceCalc();
+      });
+
+      // 日付範囲
+      const dStart = document.getElementById('date-start');
+      const dEnd = document.getElementById('date-end');
+      const dReset = document.getElementById('btn-reset-dates');
+      dStart.addEventListener('change', () => { state.dateStart = dStart.value; state.currentPage = 1; renderList(); });
+      dEnd.addEventListener('change', () => { state.dateEnd = dEnd.value; state.currentPage = 1; renderList(); });
+      dReset.addEventListener('click', () => {
+        dStart.value = ''; dEnd.value = '';
+        state.dateStart = ''; state.dateEnd = '';
+        state.currentPage = 1;
+        renderList();
+      });
+
+      // ソート選択
+      const sortSel = document.getElementById('sort-select');
+      sortSel.addEventListener('change', () => {
+        state.sort = sortSel.value;
+        state.currentPage = 1;
+        renderList();
+      });
+
+      // 職種ピルタブ
+      document.querySelectorAll('.role-pill').forEach(pill => {
+        pill.addEventListener('click', () => {
+          state.selectedRole = pill.getAttribute('data-role');
+          updateRolePillsUI();
+          state.currentPage = 1;
+          renderList();
+        });
+      });
+
+      // シフトタグ
+      document.querySelectorAll('.shift-tag').forEach(tag => {
+        tag.addEventListener('click', () => {
+          const s = tag.getAttribute('data-shift');
+          if (state.selectedShifts.has(s)) {
+            state.selectedShifts.delete(s);
+            tag.classList.remove('filter-tag-active');
+          } else {
+            state.selectedShifts.add(s);
+            tag.classList.add('filter-tag-active');
+          }
+          state.currentPage = 1;
+          renderList();
+        });
+      });
+
+      // 施設形態タグ
+      document.querySelectorAll('.type-tag').forEach(tag => {
+        tag.addEventListener('click', () => {
+          const t = tag.getAttribute('data-type');
+          if (state.selectedTypes.has(t)) {
+            state.selectedTypes.delete(t);
+            tag.classList.remove('filter-tag-active');
+          } else {
+            state.selectedTypes.add(t);
+            tag.classList.add('filter-tag-active');
+          }
+          state.currentPage = 1;
+          renderList();
+        });
+      });
+
+      // フッターアクション
+      document.getElementById('btn-scroll-top').addEventListener('click', () => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+
+      document.getElementById('btn-deselect-all').addEventListener('click', () => {
+        state.checkedIds.clear();
+        updateFooterBadge();
+        renderCheckboxes();
+      });
+
+      document.getElementById('btn-select-all').addEventListener('click', () => {
+        const filtered = getFilteredList();
+        filtered.forEach(j => state.checkedIds.add(j.id));
+        updateFooterBadge();
+        renderCheckboxes();
+        showToast(`${state.checkedIds.size} 件を選択しました`);
+      });
+
+      document.getElementById('btn-copy-selected').addEventListener('click', copySelected);
+
+      // モーダル関連
+      setupModals();
+    }
+
+    // --- モーダル設定 ---
+    function setupModals() {
+      // 詳細モーダル
+      const detModal = document.getElementById('detail-modal');
+      const detClose = document.getElementById('detail-modal-close');
+      detClose.addEventListener('click', () => detModal.classList.add('hidden'));
+      detModal.addEventListener('click', (e) => {
+        if (e.target === detModal) detModal.classList.add('hidden');
+      });
+
+      // CSV取り込みモーダル
+      const csvModal = document.getElementById('csv-upload-modal');
+      const openCsvBtn = document.getElementById('btn-open-csv-modal');
+      const csvX = document.getElementById('csv-modal-x');
+      const csvCancel = document.getElementById('csv-modal-cancel');
+      const dropzone = document.getElementById('csv-dropzone');
+      const fileInput = document.getElementById('csv-file-input');
+      const applyBtn = document.getElementById('csv-modal-apply');
+
+      const openModal = () => {
+        csvModal.classList.remove('hidden');
+        document.getElementById('parse-progress').classList.add('hidden');
+        document.getElementById('parse-summary').classList.add('hidden');
+        applyBtn.disabled = true;
+        stagedUploadJobs = [];
+      };
+
+      openCsvBtn.addEventListener('click', openModal);
+      csvX.addEventListener('click', () => csvModal.classList.add('hidden'));
+      csvCancel.addEventListener('click', () => csvModal.classList.add('hidden'));
+
+      dropzone.addEventListener('click', () => fileInput.click());
+      dropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropzone.classList.add('border-blue-600', 'bg-blue-100/50');
+      });
+      ['dragleave', 'dragend'].forEach(ev => {
+        dropzone.addEventListener(ev, () => {
+          dropzone.classList.remove('border-blue-600', 'bg-blue-100/50');
+        });
+      });
+      dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('border-blue-600', 'bg-blue-100/50');
+        if (e.dataTransfer.files.length) handleCsvFiles(Array.from(e.dataTransfer.files));
+      });
+      fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length) handleCsvFiles(Array.from(e.target.files));
+      });
+
+      applyBtn.addEventListener('click', async () => {
+        if (!stagedUploadJobs.length) return;
+        
+        // 施設名キーで重複統合（最新日付を優先）
+        const map = new Map();
+        for (const j of state.jobs) map.set(j.facility, j);
+        for (const j of stagedUploadJobs) map.set(j.facility, j);
+
+        state.jobs = Array.from(map.values());
+        await dbSave(state.jobs);
+
+        showToast(`${stagedUploadJobs.length.toLocaleString()}件を取り込み、重複を統合しました`);
+        csvModal.classList.add('hidden');
+        state.currentPage = 1;
+        renderAll();
+      });
+    }
+
+    // --- CSV高速分割パース (30MB+対応) ---
+    function handleCsvFiles(files) {
+      const pBox = document.getElementById('parse-progress');
+      const pBar = document.getElementById('parse-progress-bar');
+      const pName = document.getElementById('parse-status-name');
+      const pCount = document.getElementById('parse-status-count');
+      const sBox = document.getElementById('parse-summary');
+      const sDet = document.getElementById('parse-summary-details');
+      const applyBtn = document.getElementById('csv-modal-apply');
+
+      pBox.classList.remove('hidden');
+      sBox.classList.add('hidden');
+      pBar.style.width = '0%';
+      applyBtn.disabled = true;
+
+      let idx = 0;
+      let totalRows = 0;
+      const parsedJobsMap = new Map();
+
+      function nextFile() {
+        if (idx >= files.length) {
+          stagedUploadJobs = Array.from(parsedJobsMap.values());
+          pBar.style.width = '100%';
+          pCount.textContent = `${totalRows.toLocaleString()} 行解析完了`;
+
+          const kanto = stagedUploadJobs.filter(j => j.area === '関東').length;
+          const kansai = stagedUploadJobs.filter(j => j.area === '関西').length;
+
+          sDet.innerHTML = `
+            ・読み込み件数: <b>${totalRows.toLocaleString()}</b> 件<br>
+            ・統合後施設数: <b>${stagedUploadJobs.length.toLocaleString()}</b> 施設<br>
+            ・内訳: 関東 <b>${kanto.toLocaleString()}</b> 件 / 関西 <b>${kansai.toLocaleString()}</b> 件
+          `;
+          sBox.classList.remove('hidden');
+          applyBtn.disabled = false;
+          return;
+        }
+
+        const file = files[idx++];
+        pName.textContent = `${file.name} (${(file.size / (1024 * 1024)).toFixed(1)} MB)`;
+
+        Papa.parse(file, {
+          header: true,
+          skipEmptyLines: 'greedy',
+          chunkSize: 1024 * 1024 * 2, // 2MB chunk
+          chunk: function(results) {
+            totalRows += results.data.length;
+            pCount.textContent = `${totalRows.toLocaleString()} 件処理中...`;
+            pBar.style.width = `${Math.min(95, Math.round((totalRows / 50000) * 100))}%`;
+
+            for (const row of results.data) {
+              const fac = row['施設名'] || row['施設'] || row['事業所名'] || row['事業所'];
+              if (!fac) continue;
+
+              const role = row['職種'] || row['募集職種'] || '介護';
+              const shift = row['シフト'] || row['勤務形態'] || '日勤';
+              const notes = (row['備考'] || row['特記事項'] || '').replace(/\r\n/g, ' ').replace(/\n/g, ' ').trim();
+              const pref = row['都道府県'] || '';
+              const city = row['市区町村'] || '';
+              const addr = row['町域・番地・建物名'] || row['住所'] || '';
+              const date = (row['更新日時'] || row['獲得日時'] || '2026/10/24').split(' ')[0];
+
+              // エリア判定
+              const fullAddr = `${pref} ${city} ${addr} ${fac}`;
+              let area = '関東';
+              let detectedPref = '東京';
+
+              for (const p of KANSAI_PREFS) {
+                if (fullAddr.includes(p)) { area = '関西'; detectedPref = p; break; }
+              }
+              if (area !== '関西') {
+                for (const p of KANTO_PREFS) {
+                  if (fullAddr.includes(p)) { area = '関東'; detectedPref = p; break; }
+                }
+              }
+
+              // 施設形態判定
+              let detectedType = 'その他';
+              for (const [tKey, keywords] of Object.entries(FACILITY_KEYWORDS)) {
+                if (keywords.some(k => (fac + ' ' + notes).includes(k))) {
+                  detectedType = tKey;
+                  break;
+                }
+              }
+
+              // シフト判定（配列）
+              const shifts = [];
+              if (shift.includes('早出') || notes.includes('早出') || notes.includes('早番')) shifts.push('早出');
+              if (shift.includes('日勤') || notes.includes('日勤')) shifts.push('日勤');
+              if (shift.includes('遅出') || notes.includes('遅出') || notes.includes('遅番')) shifts.push('遅出');
+              if (shift.includes('夜勤') || notes.includes('夜勤')) shifts.push('夜勤');
+              if (!shifts.length) shifts.push('日勤');
+
+              // 職種分類
+              let cleanRole = 'その他';
+              if (role.includes('介護') || role.includes('ヘルパー')) cleanRole = '介護';
+              else if (role.includes('看') || role.includes('ナース')) cleanRole = '看護';
+              else if (role.includes('リハビリ') || role.includes('PT') || role.includes('OT')) cleanRole = 'リハビリ';
+
+              const jobObj = {
+                id: `job-${hashStr(fac)}`,
+                facility: fac.trim(),
+                role: cleanRole,
+                type: detectedType,
+                area,
+                pref: detectedPref,
+                address: `${pref}${city}${addr}`.trim() || fullAddr,
+                date: date.trim(),
+                shifts,
+                shiftNote: shift.trim() || shifts.join('・'),
+                notes
+              };
+
+              parsedJobsMap.set(fac.trim(), jobObj);
+            }
+          },
+          complete: function() {
+            nextFile();
+          }
+        });
+      }
+
+      nextFile();
+    }
+
+    // --- 全体の再描画（ピル件数更新＋リスト） ---
+    function renderAll() {
+      renderCountBadges();
+      renderPrefPills();
+      updateRolePillsUI();
+      renderList();
+    }
+
+    // --- 件数バッジの計算・更新 ---
+    function renderCountBadges() {
+      const areaJobs = state.jobs.filter(j => j.area === state.currentArea);
+      const total = areaJobs.length;
+
+      document.getElementById('top-total-badge').textContent = `${total.toLocaleString()}件`;
+      document.getElementById('role-cnt-all').textContent = total.toLocaleString();
+
+      const careCnt = areaJobs.filter(j => j.role === '介護').length;
+      const nurseCnt = areaJobs.filter(j => j.role === '看護').length;
+      const rehabCnt = areaJobs.filter(j => j.role === 'リハビリ').length;
+      const otherCnt = areaJobs.filter(j => j.role === 'その他').length;
+
+      document.getElementById('role-cnt-care').textContent = careCnt.toLocaleString();
+      document.getElementById('role-cnt-nurse').textContent = nurseCnt.toLocaleString();
+      document.getElementById('role-cnt-rehab').textContent = rehabCnt.toLocaleString();
+      document.getElementById('role-cnt-other').textContent = otherCnt.toLocaleString();
+    }
+
+    // --- 都道府県ピルの生成 ---
+    function renderPrefPills() {
+      const areaJobs = state.jobs.filter(j => j.area === state.currentArea);
+      const container = document.getElementById('dynamic-pref-pills');
+      container.innerHTML = '';
+
+      const prefList = state.currentArea === '関東' ? KANTO_PREFS : KANSAI_PREFS;
+      document.getElementById('pref-cnt-all').textContent = areaJobs.length.toLocaleString();
+
+      const allPill = document.querySelector('.pref-pill[data-pref="all"]');
+      if (state.selectedPref === 'all') {
+        allPill.className = 'pref-pill px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all border border-blue-600 text-blue-600 bg-blue-50/50';
+      } else {
+        allPill.className = 'pref-pill px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all border border-slate-200 text-slate-700 bg-white hover:bg-slate-50';
+      }
+
+      allPill.onclick = () => {
+        state.selectedPref = 'all';
+        renderPrefPills();
+        state.currentPage = 1;
+        renderList();
+      };
+
+      prefList.forEach(pref => {
+        const count = areaJobs.filter(j => (j.pref || '').includes(pref) || (j.address || '').includes(pref)).length;
+        if (count === 0) return;
+
+        const isAct = state.selectedPref === pref;
+        const btn = document.createElement('button');
+        btn.className = `pref-pill px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+          isAct 
+            ? 'border border-blue-600 text-blue-600 bg-blue-50/50' 
+            : 'border border-slate-200 text-slate-700 bg-white hover:bg-slate-50'
+        }`;
+        btn.innerHTML = `${pref} <span class="font-normal text-[11px] ml-0.5 text-slate-400">${count}</span>`;
+        btn.onclick = () => {
+          state.selectedPref = pref;
+          renderPrefPills();
+          state.currentPage = 1;
+          renderList();
+        };
+        container.appendChild(btn);
+      });
+    }
+
+    function updateRolePillsUI() {
+      document.querySelectorAll('.role-pill').forEach(pill => {
+        const r = pill.getAttribute('data-role');
+        const isActive = state.selectedRole === r;
+        if (isActive) {
+          pill.className = 'role-pill px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all bg-blue-600 text-white shadow-xs';
+          const cntSpan = pill.querySelector('span');
+          if (cntSpan) cntSpan.className = 'font-normal text-xs ml-0.5 opacity-90 text-white';
+        } else {
+          pill.className = 'role-pill px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all bg-white text-slate-700 border border-slate-200 hover:bg-slate-50';
+          const cntSpan = pill.querySelector('span');
+          if (cntSpan) cntSpan.className = 'font-normal text-xs ml-0.5 text-slate-400';
+        }
+      });
+    }
+
+    // --- 絞り込みロジック ---
+    function getFilteredList() {
+      return state.jobs.filter(job => {
+        if (job.area !== state.currentArea) return false;
+
+        // 職種ピル
+        if (state.selectedRole !== 'all' && job.role !== state.selectedRole) return false;
+
+        // 都道府県ピル
+        if (state.selectedPref !== 'all') {
+          const matchPref = (job.pref || '').includes(state.selectedPref) || (job.address || '').includes(state.selectedPref);
+          if (!matchPref) return false;
+        }
+
+        // キーワード検索
+        if (state.keyword) {
+          const kw = state.keyword.toLowerCase();
+          const target = `${job.facility} ${job.address || ''} ${job.shiftNote || ''} ${job.notes || ''}`.toLowerCase();
+          if (!target.includes(kw)) return false;
+        }
+
+        // シフトタグ（OR一致）
+        if (state.selectedShifts.size > 0) {
+          let hasS = false;
+          for (const s of state.selectedShifts) {
+            if ((job.shifts && job.shifts.includes(s)) || (job.shiftNote && job.shiftNote.includes(s)) || (job.notes && job.notes.includes(s))) {
+              hasS = true;
+              break;
+            }
+          }
+          if (!hasS) return false;
+        }
+
+        // 施設形態タグ（OR一致）
+        if (state.selectedTypes.size > 0) {
+          let hasT = false;
+          for (const t of state.selectedTypes) {
+            const aliases = FACILITY_KEYWORDS[t] || [t];
+            if (aliases.some(alias => (job.type === t) || (job.facility + ' ' + job.notes).includes(alias))) {
+              hasT = true;
+              break;
+            }
+          }
+          if (!hasT) return false;
+        }
+
+        // 日付範囲
+        if (state.dateStart && job.date) {
+          if (job.date < state.dateStart.replace(/-/g, '/')) return false;
+        }
+        if (state.dateEnd && job.date) {
+          if (job.date > state.dateEnd.replace(/-/g, '/')) return false;
+        }
+
+        return true;
+      });
+    }
+
+    // --- 案件カード一覧の描画（画像のUI完全再現） ---
+    function renderList() {
+      const container = document.getElementById('jobs-vertical-list');
+      const filtered = getFilteredList();
+
+      // ソート
+      if (state.sort === 'distance_asc' && state.geoBase) {
+        filtered.sort((a, b) => (a.calcDistance || 9999) - (b.calcDistance || 9999));
+      } else if (state.sort === 'facility_asc') {
+        filtered.sort((a, b) => a.facility.localeCompare(b.facility, 'ja'));
+      } else {
+        // 新しい順
+        filtered.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      }
+
+      const total = filtered.length;
+      document.getElementById('list-total-counter').textContent = `${total.toLocaleString()}件`;
+
+      if (total === 0) {
+        container.innerHTML = '';
+        document.getElementById('no-cards-placeholder').classList.remove('hidden');
+        document.getElementById('pagination-wrapper').innerHTML = '';
+        updateFooterBadge();
+        return;
+      }
+
+      document.getElementById('no-cards-placeholder').classList.add('hidden');
+
+      // ページネーション
+      const totalPages = Math.ceil(total / state.pageSize);
+      if (state.currentPage > totalPages) state.currentPage = totalPages;
+      const start = (state.currentPage - 1) * state.pageSize;
+      const pageJobs = filtered.slice(start, start + state.pageSize);
+
+      container.innerHTML = '';
+
+      pageJobs.forEach(job => {
+        const isChecked = state.checkedIds.has(job.id);
+
+        // 職種に応じた左端ボーダーカラー ＆ バッジカラー（画像準拠）
+        let leftBorderColor = 'border-l-[#10b981]'; // 介護: 緑
+        let roleBadgeClass = 'bg-[#e6f4ea] text-[#137333] border border-[#ceead6]';
+
+        if (job.role === '看護') {
+          leftBorderColor = 'border-l-[#8b5cf6]'; // 看護: 紫
+          roleBadgeClass = 'bg-[#f3e8ff] text-[#7e22ce] border border-[#e9d5ff]';
+        } else if (job.role === 'その他') {
+          leftBorderColor = 'border-l-[#14b8a6]'; // その他: ティール
+          roleBadgeClass = 'bg-[#e0f2fe] text-[#0369a1] border border-[#bae6fd]';
+        } else if (job.role === 'リハビリ') {
+          leftBorderColor = 'border-l-[#f59e0b]'; // リハビリ: 橙
+          roleBadgeClass = 'bg-[#fef3c7] text-[#b45309] border border-[#fde68a]';
+        }
+
+        // 施設形態バッジ（画像準拠: オレンジ系背景）
+        const typeBadgeClass = 'bg-[#fef3c7] text-[#b45309] border border-[#fde68a]';
+
+        const card = document.createElement('div');
+        card.className = `group bg-white rounded-2xl border border-slate-200/90 border-l-[6px] ${leftBorderColor} p-4 sm:p-5 transition-all shadow-xs hover:shadow-md cursor-pointer relative`;
+
+        card.innerHTML = `
+          <!-- 上段: 職種バッジ・施設形態バッジ・施設名・右端チェックボックス -->
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex items-center gap-2 flex-wrap min-w-0 flex-1">
+              <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-md ${roleBadgeClass}">
+                ${escapeHtml(job.role)}
+              </span>
+              <span class="text-[11px] font-bold px-2 py-0.5 rounded-md ${typeBadgeClass}">
+                ${escapeHtml(job.type || '特養')}
+              </span>
+              <h3 class="text-base sm:text-lg font-black text-slate-900 group-hover:text-blue-600 transition-colors truncate">
+                ${escapeHtml(job.facility)}
+              </h3>
+            </div>
+
+            <!-- 角丸チェックボックス -->
+            <div class="shrink-0 pt-0.5" onclick="event.stopPropagation()">
+              <input 
+                type="checkbox" 
+                data-id="${job.id}" 
+                class="job-chk w-5 h-5 rounded-lg text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                ${isChecked ? 'checked' : ''}
+              >
+            </div>
+          </div>
+
+          <!-- 中段: 住所（破線下線） -->
+          <div class="pt-2">
+            <span class="text-xs sm:text-sm text-slate-600 dashed-underline hover:text-blue-600 inline-block">
+              ${escapeHtml(job.address || '東京都北区西ヶ原4-51-1')}
+            </span>
+          </div>
+
+          <!-- 下段: 更新日付・シフトバッジ・補足テキスト・距離バッジ -->
+          <div class="pt-2.5 flex items-center gap-3 text-xs text-slate-400 flex-wrap">
+            <span class="font-mono text-slate-500 text-[11px]">${escapeHtml(job.date || '2026/10/24')}</span>
+
+            <!-- シフトバッジ (画像の青塗りつぶしバッジ) -->
+            <div class="flex items-center gap-1">
+              ${(job.shifts || ['日勤']).map(s => `
+                <span class="px-2 py-0.5 rounded-md bg-[#2563eb] text-white font-bold text-[10px] tracking-wide">
+                  ${escapeHtml(s)}
+                </span>
+              `).join('')}
+            </div>
+
+            <!-- シフト補足テキスト -->
+            <span class="text-slate-500 font-medium text-xs">
+              ${escapeHtml(job.shiftNote || '日勤・夜勤')}
+            </span>
+
+            <!-- 距離計算済みの場合は距離を表示 -->
+            ${job.calcDistance !== undefined ? `
+              <span class="text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200 font-mono ml-auto">
+                📍 約 ${job.calcDistance} km
+              </span>
+            ` : ''}
+          </div>
+        `;
+
+        // カード全体クリックで詳細モーダル
+        card.addEventListener('click', () => openDetailModal(job));
+
+        container.appendChild(card);
+      });
+
+      // チェックボックスイベント
+      document.querySelectorAll('.job-chk').forEach(chk => {
+        chk.addEventListener('change', (e) => {
+          const id = e.target.getAttribute('data-id');
+          if (e.target.checked) state.checkedIds.add(id);
+          else state.checkedIds.delete(id);
+          updateFooterBadge();
+        });
+      });
+
+      renderPagination(totalPages);
+      updateFooterBadge();
+    }
+
+    function renderCheckboxes() {
+      document.querySelectorAll('.job-chk').forEach(chk => {
+        const id = chk.getAttribute('data-id');
+        chk.checked = state.checkedIds.has(id);
+      });
+    }
+
+    function updateFooterBadge() {
+      document.getElementById('selected-badge').textContent = state.checkedIds.size.toLocaleString();
+    }
+
+    function renderPagination(totalPages) {
+      const wrapper = document.getElementById('pagination-wrapper');
+      wrapper.innerHTML = '';
+      if (totalPages <= 1) return;
+
+      const makeBtn = (text, p, isAct, isDis) => {
+        const b = document.createElement('button');
+        b.textContent = text;
+        b.disabled = isDis;
+        b.className = `px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+          isAct ? 'bg-blue-600 text-white shadow-xs' : isDis ? 'text-slate-300 cursor-not-allowed' : 'text-slate-600 hover:bg-slate-200'
+        }`;
+        if (!isDis && p !== state.currentPage) {
+          b.onclick = () => {
+            state.currentPage = p;
+            renderList();
+            window.scrollTo({ top: 200, behavior: 'smooth' });
+          };
+        }
+        return b;
+      };
+
+      wrapper.appendChild(makeBtn('前へ', state.currentPage - 1, false, state.currentPage === 1));
+      let s = Math.max(1, state.currentPage - 2);
+      let e = Math.min(totalPages, state.currentPage + 2);
+      for (let i = s; i <= e; i++) {
+        wrapper.appendChild(makeBtn(i.toString(), i, i === state.currentPage, false));
+      }
+      wrapper.appendChild(makeBtn('次へ', state.currentPage + 1, false, state.currentPage === totalPages));
+    }
+
+    // --- 詳細モーダル表示 ---
+    function openDetailModal(job) {
+      const modal = document.getElementById('detail-modal');
+      document.getElementById('detail-facility-name').textContent = job.facility;
+      document.getElementById('detail-address').textContent = job.address || '未設定';
+      document.getElementById('detail-shift').textContent = `${(job.shifts || []).join(' / ')} (${job.shiftNote || ''})`;
+      document.getElementById('detail-updated').textContent = `${job.date || ''} (${job.id})`;
+      document.getElementById('detail-notes').textContent = job.notes || '詳細情報・備考の記載はありません。';
+
+      const bContainer = document.getElementById('detail-badges');
+      bContainer.innerHTML = `
+        <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-md bg-blue-100 text-blue-700 font-bold">${job.role}</span>
+        <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-md bg-amber-100 text-amber-800">${job.type || '特養'}</span>
+        <span class="text-[11px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">${job.area}</span>
+      `;
+
+      document.getElementById('detail-btn-copy-one').onclick = () => {
+        copyJobsText([job], `「${job.facility}」の情報をコピーしました`);
+      };
+
+      modal.classList.remove('hidden');
+    }
+
+    // --- コピー処理 ---
+    function copySelected() {
+      if (state.checkedIds.size === 0) {
+        showToast('コピーしたい案件のチェックボックスを選択してください', 'warn');
+        return;
+      }
+      const list = state.jobs.filter(j => state.checkedIds.has(j.id));
+      copyJobsText(list, `${list.length}件の求人情報を一括コピーしました！`);
+    }
+
+    function copyJobsText(jobs, successMsg) {
+      const formatted = jobs.map((j, i) => {
+        const distStr = j.calcDistance ? ` (基準地より約${j.calcDistance}km)` : '';
+        return `【案件${i + 1}】${j.facility}${distStr}\n・所在地: ${j.address || ''}\n・職種: ${j.role} / 施設形態: ${j.type || 'その他'}\n・シフト: ${(j.shifts || []).join('、')} (${j.shiftNote || ''})\n・備考: ${j.notes || '特記事項なし'}`;
+      }).join('\n\n----------------------------------------\n\n');
+
+      const fullText = `【求人案件のご案内 (${jobs.length}件)】\n\n${formatted}\n`;
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(fullText).then(() => showToast(successMsg)).catch(() => fallbackCopy(fullText, successMsg));
+      } else {
+        fallbackCopy(fullText, successMsg);
+      }
+    }
+
+    function fallbackCopy(text, msg) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try {
+        document.execCommand('copy');
+        showToast(msg);
+      } catch (e) {
+        showToast('コピーに失敗しました', 'warn');
+      }
+      document.body.removeChild(ta);
+    }
+
+    // --- ユーティリティ ---
+    function calcHaversine(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
+      return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)) * 10) / 10;
+    }
+
+    function hashStr(str) {
+      let h = 0;
+      for (let i = 0; i < str.length; i++) {
+        h = (h << 5) - h + str.charCodeAt(i);
+        h |= 0;
+      }
+      return Math.abs(h);
+    }
+
+    function escapeHtml(str) {
+      return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
+    let toastTimer;
+    function showToast(msg, type = 'success') {
+      clearTimeout(toastTimer);
+      const t = document.getElementById('toast');
+      const txt = document.getElementById('toast-text');
+      const icn = document.getElementById('toast-icon');
+      txt.textContent = msg;
+      icn.textContent = type === 'warn' ? '⚠' : '✓';
+      t.className = `fixed top-5 right-5 z-50 transform translate-y-0 opacity-100 transition-all duration-300 text-white text-xs sm:text-sm px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 ${
+        type === 'warn' ? 'bg-amber-600' : 'bg-slate-900'
+      }`;
+      toastTimer = setTimeout(() => {
+        t.classList.add('-translate-y-10', 'opacity-0');
+      }, 3000);
+    }
+  </script>
+</body>
+</html>
