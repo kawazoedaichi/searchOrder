@@ -28,44 +28,46 @@
       border: 3px solid #ffffff;
       box-shadow: 0 2px 6px rgba(0,0,0,0.25);
     }
-    .touch-range {
-      touch-action: pan-y;
-    }
+    .touch-range { touch-action: pan-y; }
   </style>
 </head>
 <body class="bg-gray-100 text-gray-800 antialiased pb-24">
 
-  <!-- エリア選択モーダル（初回） -->
-  <div id="areaModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl max-w-md w-full p-6 text-center shadow-2xl">
+  <!-- エリア選択モーダル -->
+  <div id="areaModal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" style="display: flex;">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 text-center shadow-2xl relative">
+      <button onclick="closeAreaModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-2 text-lg">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
       <h2 class="text-xl font-bold text-gray-900 mb-1">エリアを選択</h2>
       <p class="text-sm text-gray-500 mb-6">どちらのエリアの案件を検索しますか？</p>
       
       <div class="grid grid-cols-2 gap-4 mb-6">
-        <button onclick="selectArea('関西')" class="border-2 border-gray-200 hover:border-blue-500 rounded-xl p-5 text-center transition bg-gray-50 hover:bg-blue-50/50 group">
+        <button type="button" onclick="selectArea('関西')" class="border-2 border-gray-200 hover:border-blue-500 rounded-xl p-5 text-center transition bg-gray-50 hover:bg-blue-50/50 group cursor-pointer active:scale-95">
           <div class="text-4xl mb-2">🏯</div>
           <div class="font-bold text-gray-800 text-lg group-hover:text-blue-600">関西</div>
-          <div id="kansaiCountBadge" class="text-xs text-gray-500 mt-1">0件</div>
+          <div id="kansaiCountBadge" class="text-xs text-gray-500 mt-1 font-semibold">0件</div>
         </button>
-        <button onclick="selectArea('関東')" class="border-2 border-gray-200 hover:border-blue-500 rounded-xl p-5 text-center transition bg-gray-50 hover:bg-blue-50/50 group">
+        <button type="button" onclick="selectArea('関東')" class="border-2 border-gray-200 hover:border-blue-500 rounded-xl p-5 text-center transition bg-gray-50 hover:bg-blue-50/50 group cursor-pointer active:scale-95">
           <div class="text-4xl mb-2">🏙</div>
           <div class="font-bold text-gray-800 text-lg group-hover:text-blue-600">関東</div>
-          <div id="kantoCountBadge" class="text-xs text-gray-500 mt-1">0件</div>
+          <div id="kantoCountBadge" class="text-xs text-gray-500 mt-1 font-semibold">0件</div>
         </button>
       </div>
 
-      <button onclick="openCsvModal()" class="w-full py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg transition flex items-center justify-center gap-2">
-        <i class="fa-solid fa-folder-open text-blue-600"></i> CSVから案件を取り込む
+      <button type="button" onclick="openCsvModalFromArea()" class="w-full py-3 px-4 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-bold rounded-xl transition flex items-center justify-center gap-2 border border-blue-200 cursor-pointer">
+        <i class="fa-solid fa-folder-open text-blue-600"></i> 手動でCSVを取り込む
       </button>
     </div>
   </div>
 
   <!-- CSV取り込みモーダル -->
-  <div id="csvModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4">
+  <div id="csvModal" class="fixed inset-0 bg-black/60 z-50 items-center justify-center p-4" style="display: none;">
     <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
       <div class="flex items-center justify-between pb-3 border-b">
         <h3 class="text-lg font-bold text-gray-900 flex items-center gap-2">
-          <i class="fa-solid fa-file-csv text-blue-600"></i> CSV案件取り込み
+          <i class="fa-solid fa-file-csv text-blue-600"></i> CSV手動取り込み
         </h3>
         <button onclick="closeCsvModal()" class="text-gray-400 hover:text-gray-600 p-1">
           <i class="fa-solid fa-xmark text-lg"></i>
@@ -75,12 +77,11 @@
       <div class="mt-4 p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-xs text-blue-900 leading-relaxed">
         <div class="font-bold flex items-center justify-between mb-1">
           <span>📌 参照元</span>
-          <a href="https://metabase.arrove.jp/dashboard/793?employment_type=&facility_name=&job_type=&prefecture=%E5%8D%83%E8%91%89%E7%9C%8C&prefecture=%E5%9F%BC%E7%8E%89%E7%9C%8C&prefecture=%E7%BE%A4%E9%A6%AC%E7%9C%8C&prefecture=%E6%9D%B1%E4%BA%AC%E9%83%BD&prefecture=%E7%A5%9E%E5%A5%88%E5%B7%9D%E7%9C%8C&prefecture=%E6%A0%83%E6%9C%A8%E7%9C%8C&prefecture=%E8%8C%A8%E5%9F%8E%E7%9C%8C&tenant=&updated_period=thisyear" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-blue-600 hover:underline font-semibold bg-white px-2 py-0.5 rounded shadow-sm">
+          <a href="https://metabase.arrove.jp/dashboard/793" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-blue-600 hover:underline font-semibold bg-white px-2 py-0.5 rounded shadow-sm">
             <span>Metabaseを開く</span> <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
           </a>
         </div>
         <p class="text-gray-700">メタベース ＞ キカリ共通 ＞ バックオーダー</p>
-        <p class="text-[11px] text-gray-500 mt-1">※エクスポートしたバックオーダーCSVをそのまま投入してください（30MB以上の大容量も自動処理します）。</p>
       </div>
 
       <div id="dropZone" class="mt-4 border-2 border-dashed border-gray-300 hover:border-blue-500 bg-gray-50 hover:bg-blue-50/40 rounded-2xl p-8 text-center cursor-pointer transition" onclick="document.getElementById('fileInput').click()">
@@ -106,27 +107,23 @@
     </div>
   </div>
 
-  <!-- メインコンテンツ -->
+  <!-- メイン画面 -->
   <main class="max-w-4xl mx-auto px-3 sm:px-4 pt-4 sm:pt-6">
-    
-    <!-- トップヘッダー -->
     <div class="flex items-center justify-between mb-4">
       <div class="flex items-center gap-3">
         <h1 class="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">案件検索</h1>
         <span id="totalHeaderCount" class="text-xs sm:text-sm text-gray-500 font-semibold">0件</span>
-        <button onclick="toggleAreaModal()" class="inline-flex items-center gap-1 px-3 py-1 bg-white border border-blue-500 text-blue-600 hover:bg-blue-50 rounded-lg text-xs font-bold shadow-sm transition">
+        <button onclick="openAreaModal()" class="inline-flex items-center gap-1 px-3 py-1 bg-white border border-blue-500 text-blue-600 hover:bg-blue-50 rounded-lg text-xs font-bold shadow-sm transition">
           <span id="currentAreaText">関東</span> <i class="fa-solid fa-chevron-down text-[10px]"></i>
         </button>
       </div>
       <button onclick="openCsvModal()" class="px-3 py-1.5 bg-white border border-gray-300 hover:border-blue-500 text-gray-700 hover:text-blue-600 rounded-lg text-xs font-bold shadow-sm transition flex items-center gap-1.5">
-        <i class="fa-solid fa-folder-open text-blue-600"></i> <span class="hidden sm:inline">CSV</span>取り込み
+        <i class="fa-solid fa-folder-open text-blue-600"></i> <span class="hidden sm:inline">CSV</span>手動取り込み
       </button>
     </div>
 
-    <!-- 検索コントロールボックス -->
+    <!-- 検索ボックス -->
     <div class="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-3.5 sm:p-5 space-y-3.5">
-      
-      <!-- キーワード検索窓 -->
       <div class="relative">
         <input type="text" id="searchInput" placeholder="施設名・住所・キーワードで検索" 
                class="w-full pl-4 pr-10 py-2.5 sm:py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition"
@@ -136,7 +133,6 @@
         </button>
       </div>
 
-      <!-- 住所・距離計算入力欄 -->
       <div class="flex items-center gap-2">
         <input type="text" id="addressInput" placeholder="住所（例：神奈川県厚木市長谷1294-21、横浜駅）" 
                class="flex-1 px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition"
@@ -149,7 +145,7 @@
         </button>
       </div>
 
-      <!-- 距離スライダー (デフォルト5km) -->
+      <!-- スライダー（デフォルト5km） -->
       <div class="pt-1 pb-1 px-1">
         <div class="flex items-center justify-between text-xs font-bold text-gray-700 mb-2">
           <div class="flex items-center gap-2">
@@ -163,7 +159,6 @@
           <input type="range" id="distanceRange" min="1" max="51" value="5" step="1"
                  class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider-thumb touch-range focus:outline-none"
                  oninput="onDistanceRangeInput(this.value)">
-          <!-- 目盛りラベル（タップで即選択可能） -->
           <div class="flex justify-between text-[10px] sm:text-xs text-gray-400 mt-2 px-1 font-semibold select-none">
             <span class="cursor-pointer hover:text-blue-600" onclick="setDistancePreset(1)">1km</span>
             <span class="cursor-pointer hover:text-blue-600" onclick="setDistancePreset(5)">5</span>
@@ -177,7 +172,7 @@
         </div>
       </div>
 
-      <!-- 日付範囲 & ソート -->
+      <!-- 日付・ソート -->
       <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-gray-100">
         <div class="flex items-center gap-1.5 text-xs text-gray-600">
           <input type="date" id="dateStart" class="bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none text-xs" onchange="applyFilters()">
@@ -186,15 +181,13 @@
           <button onclick="resetFilters()" class="ml-2 text-xs text-gray-400 hover:text-gray-700 underline">リセット</button>
         </div>
 
-        <div class="flex items-center gap-1.5">
-          <select id="sortSelect" onchange="applyFilters()" class="bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-gray-700 focus:outline-none cursor-pointer">
-            <option value="newest">▼ 新しい順</option>
-            <option value="distance">↑↓ 距離順</option>
-          </select>
-        </div>
+        <select id="sortSelect" onchange="applyFilters()" class="bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-gray-700 focus:outline-none cursor-pointer">
+          <option value="newest">▼ 新しい順</option>
+          <option value="distance">↑↓ 距離順</option>
+        </select>
       </div>
 
-      <!-- ピルタブ（職種・全件） -->
+      <!-- ピルタブ -->
       <div class="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
         <button onclick="setJobFilter('all')" id="btnJobAll" class="px-3.5 py-1.5 rounded-full text-xs font-bold transition bg-blue-600 text-white shadow-sm">
           すべて <span id="countPillAll" class="ml-1 opacity-90 text-[11px]">0</span>
@@ -207,12 +200,9 @@
         </button>
       </div>
 
-      <!-- エリア内 都道府県ピルタブ -->
-      <div id="prefPillContainer" class="flex flex-wrap gap-1.5 text-xs">
-        <!-- 動的生成 -->
-      </div>
+      <div id="prefPillContainer" class="flex flex-wrap gap-1.5 text-xs"></div>
 
-      <!-- シフト絞り込みチップ -->
+      <!-- シフトチップ -->
       <div class="flex flex-wrap items-center gap-1.5 pt-2 border-t border-gray-100">
         <span class="text-xs font-bold text-gray-500 mr-1">シフト:</span>
         <button onclick="toggleChip(this, 'shift', '早出')" class="chip px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">早出</button>
@@ -221,7 +211,7 @@
         <button onclick="toggleChip(this, 'shift', '夜勤')" class="chip px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">夜勤</button>
       </div>
 
-      <!-- 施設形態絞り込みチップ -->
+      <!-- 施設形態チップ -->
       <div class="flex flex-wrap items-center gap-1.5 pt-1">
         <span class="text-xs font-bold text-gray-500 mr-1">施設形態:</span>
         <button onclick="toggleChip(this, 'type', '特養')" class="chip px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">特養</button>
@@ -238,31 +228,26 @@
         <button onclick="toggleChip(this, 'type', '居宅')" class="chip px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">居宅</button>
         <button onclick="toggleChip(this, 'type', 'ケアハウス')" class="chip px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition">ケアハウス</button>
       </div>
-
     </div>
 
-    <!-- 検索結果件数表示 -->
+    <!-- 件数表示 -->
     <div class="mt-4 mb-2 flex items-center justify-between px-1">
       <div class="text-xs sm:text-sm font-bold text-gray-700">
         <span id="filteredCountText">0</span>件 表示中
       </div>
     </div>
 
-    <!-- 案件カード一覧コンテナ -->
-    <div id="jobListContainer" class="space-y-3">
-      <!-- カードは動的に描画されます -->
-    </div>
+    <!-- 案件カード一覧 -->
+    <div id="jobListContainer" class="space-y-3"></div>
 
-    <!-- 該当なし表示 -->
     <div id="noDataView" class="hidden py-16 text-center bg-white rounded-2xl border border-dashed border-gray-300 mt-3">
       <div class="text-4xl mb-3 text-gray-400">🔍</div>
       <p class="font-bold text-gray-700">該当する案件がありません</p>
-      <p class="text-xs text-gray-500 mt-1">検索キーワードや絞り込み条件・距離を変更してお試しください。</p>
+      <p class="text-xs text-gray-500 mt-1">条件を変更するか、右上の取り込みからデータを追加してください。</p>
     </div>
-
   </main>
 
-  <!-- 画面最下部 固定アクションバー -->
+  <!-- 固定アクションバー -->
   <footer class="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur border-t border-gray-200 shadow-lg px-4 py-3 z-40">
     <div class="max-w-4xl mx-auto flex items-center justify-between gap-2">
       <div class="flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-700">
@@ -281,14 +266,12 @@
     </div>
   </footer>
 
-  <!-- コピートースト通知 -->
   <div id="toast" class="fixed top-5 left-1/2 -translate-x-1/2 bg-gray-900/90 text-white px-5 py-2.5 rounded-full text-xs font-bold shadow-2xl z-50 transition-all duration-300 opacity-0 pointer-events-none flex items-center gap-2">
     <i class="fa-solid fa-check text-green-400"></i>
-    <span id="toastMsg">クリップボードにコピーしました</span>
+    <span id="toastMsg">コピーしました</span>
   </div>
 
   <script>
-    // 主要自治体・代表座標マップ
     const MUNI_COORDS = {
       "厚木市": [35.4432, 139.3625], "横浜市": [35.4437, 139.6380], "川崎市": [35.5308, 139.7029], "相模原市": [35.5714, 139.3732],
       "新宿区": [35.6938, 139.7034], "世田谷区": [35.6466, 139.6532], "練馬区": [35.7356, 139.6517], "大田区": [35.5614, 139.7161],
@@ -297,4 +280,558 @@
       "千葉市": [35.6074, 140.1065], "船橋市": [35.6947, 139.9826], "柏市": [35.8622, 139.9709], "松戸市": [35.7877, 139.9038],
       "大阪市": [34.6937, 135.5023], "堺市": [34.5733, 135.4830], "東大阪市": [34.6793, 135.6008], "豊中市": [34.7813, 135.4695],
       "神戸市": [34.6901, 135.1955], "西宮市": [34.7376, 135.3415], "尼崎市": [34.7176, 135.4057], "姫路市": [34.8152, 134.6853],
-      "京都市": [35.0116, 135.7681], "奈良市": [34.6851, 135.8048], "大津市": [35.0045
+      "京都市": [35.0116, 135.7681], "奈良市": [34.6851, 135.8048], "大津市": [35.0045, 135.8686], "和歌山市": [34.2260, 135.1675]
+    };
+
+    let allJobs = [];
+    let currentArea = '関東';
+    let selectedJobType = 'all';
+    let selectedPref = 'all';
+    let activeChips = { shift: new Set(), type: new Set() };
+    let selectedJobIds = new Set();
+    let userBaseCoord = null;
+    let distanceLimitKm = 5;
+
+    const KANTO_PREFS = ['東京都', '神奈川県', '埼玉県', '千葉県', '茨城県', '栃木県', '群馬県'];
+    const KANSAI_PREFS = ['大阪府', '兵庫県', '京都府', '滋賀県', '奈良県', '和歌山県'];
+
+    const DUMMY_JOBS = [
+      { id: 'job_1', facility: '特別養護老人ホーム 飛鳥晴山苑', pref: '東京都', city: '北区', address: '西ヶ原4-51-1', jobType: '介護', facilityType: '特養', shifts: ['日勤', '夜勤'], date: '2026/10/24', notes: '男女問わず／週3～／初任者以上\n早番：7:00～16:00\n日勤：8:00～17:00\n遅番：10:30～19:30', lat: 35.744, lng: 139.736 },
+      { id: 'job_2', facility: '特別養護老人ホーム 飛鳥晴山苑', pref: '東京都', city: '北区', address: '西ヶ原4-51-1', jobType: '看護', facilityType: '特養', shifts: ['日勤'], date: '2026/10/24', notes: '正看護師または准看護師。バイタルチェック、服薬管理が中心です。', lat: 35.744, lng: 139.736 },
+      { id: 'job_3', facility: 'ロイヤルレジデンス浦和', pref: '埼玉県', city: 'さいたま市浦和区', address: '上木崎3-3-11', jobType: '介護', facilityType: '有料', shifts: ['日勤', '夜勤'], date: '2026/11/11', notes: '週4日以上入れる方歓迎。マイカー通勤OK。', lat: 35.875, lng: 139.638 },
+      { id: 'job_4', facility: 'サンライズ・ヴィラ瀬谷', pref: '神奈川県', city: '横浜市瀬谷区', address: '相沢7-9-2', jobType: '介護', facilityType: '有料', shifts: ['早出', '日勤', '遅出'], date: '2026/11/11', notes: '早日または遅番専従対応できる方歓迎！', lat: 35.474, lng: 139.497 },
+      { id: 'job_5', facility: 'グループホームヨコタ', pref: '東京都', city: '福生市', address: '福生2266-11', jobType: '介護', facilityType: 'GH', shifts: ['夜勤'], date: '2026/11/11', notes: '夜勤専従スタッフ。1夜勤28,000円。', lat: 35.741, lng: 139.328 }
+    ];
+
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open('JobOrderSearchDB', 1);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('jobs')) {
+            db.createObjectStore('jobs', { keyPath: 'id' });
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function saveJobsToDB(jobs) {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('jobs', 'readwrite');
+        const store = tx.objectStore('jobs');
+        store.clear();
+        jobs.forEach(j => store.put(j));
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function loadJobsFromDB() {
+      try {
+        const db = await openDB();
+        return new Promise((resolve) => {
+          const tx = db.transaction('jobs', 'readonly');
+          const store = tx.objectStore('jobs');
+          const req = store.getAll();
+          req.onsuccess = () => resolve(req.result || []);
+          req.onerror = () => resolve([]);
+        });
+      } catch (e) {
+        return [];
+      }
+    }
+
+    // 起動時にリポジトリ直下の jobs.json を自動取得試行
+    async function tryLoadRemoteJson() {
+      try {
+        const res = await fetch('./jobs.json', { cache: 'no-cache' });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            console.log(`リモート jobs.json から ${data.length} 件を自動取得`);
+            await saveJobsToDB(data);
+            return data;
+          }
+        }
+      } catch (err) {
+        console.warn('jobs.json の自動読み込みスキップ:', err);
+      }
+      return null;
+    }
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      // 1. リポジトリ上の jobs.json をチェック
+      let loaded = await tryLoadRemoteJson();
+      // 2. なければローカル保存データをチェック
+      if (!loaded || loaded.length === 0) {
+        const local = await loadJobsFromDB();
+        loaded = (local && local.length > 0) ? local : DUMMY_JOBS;
+      }
+      allJobs = loaded;
+      updateAreaBadges();
+      renderPrefPills();
+      applyFilters();
+    });
+
+    function selectArea(area) {
+      currentArea = area;
+      document.getElementById('currentAreaText').textContent = area;
+      closeAreaModal();
+      selectedPref = 'all';
+      renderPrefPills();
+      applyFilters();
+    }
+
+    function openAreaModal() { document.getElementById('areaModal').style.display = 'flex'; }
+    function closeAreaModal() { document.getElementById('areaModal').style.display = 'none'; }
+    function openCsvModalFromArea() { closeAreaModal(); openCsvModal(); }
+    function openCsvModal() { document.getElementById('csvModal').style.display = 'flex'; }
+    function closeCsvModal() { document.getElementById('csvModal').style.display = 'none'; }
+
+    function updateAreaBadges() {
+      let kansaiCount = 0;
+      let kantoCount = 0;
+      allJobs.forEach(j => {
+        if (KANSAI_PREFS.some(p => j.pref.includes(p))) kansaiCount++;
+        else kantoCount++;
+      });
+      document.getElementById('kansaiCountBadge').textContent = `${kansaiCount.toLocaleString()}件`;
+      document.getElementById('kantoCountBadge').textContent = `${kantoCount.toLocaleString()}件`;
+      document.getElementById('totalHeaderCount').textContent = `${(currentArea === '関東' ? kantoCount : kansaiCount).toLocaleString()}件`;
+    }
+
+    function renderPrefPills() {
+      const container = document.getElementById('prefPillContainer');
+      const prefs = currentArea === '関東' ? ['東京', '神奈川', '埼玉', '千葉', '茨城', '群馬', '栃木'] : ['大阪', '兵庫', '京都', '奈良', '滋賀', '和歌山'];
+      
+      let html = `
+        <button onclick="setPrefFilter('all')" class="pref-pill px-3 py-1 rounded-full border transition ${selectedPref === 'all' ? 'bg-blue-600 text-white border-blue-600 font-bold' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}">
+          全エリア
+        </button>
+      `;
+
+      prefs.forEach(p => {
+        const count = allJobs.filter(j => j.pref.includes(p) && (currentArea === '関東' ? KANTO_PREFS.some(kp => j.pref.includes(kp)) : KANSAI_PREFS.some(kp => j.pref.includes(kp)))).length;
+        const isSelected = selectedPref === p;
+        html += `
+          <button onclick="setPrefFilter('${p}')" class="pref-pill px-3 py-1 rounded-full border transition ${isSelected ? 'bg-blue-600 text-white border-blue-600 font-bold' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}">
+            ${p} <span class="text-[10px] ${isSelected ? 'text-white' : 'text-gray-400'}">${count}</span>
+          </button>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    function setJobFilter(type) {
+      selectedJobType = type;
+      ['btnJobAll', 'btnJobKaigo', 'btnJobKango'].forEach(id => {
+        const btn = document.getElementById(id);
+        btn.className = "px-3.5 py-1.5 rounded-full text-xs font-bold transition bg-gray-100 hover:bg-gray-200 text-gray-700";
+      });
+      if (type === 'all') document.getElementById('btnJobAll').className = "px-3.5 py-1.5 rounded-full text-xs font-bold transition bg-blue-600 text-white shadow-sm";
+      if (type === '介護') document.getElementById('btnJobKaigo').className = "px-3.5 py-1.5 rounded-full text-xs font-bold transition bg-blue-600 text-white shadow-sm";
+      if (type === '看護') document.getElementById('btnJobKango').className = "px-3.5 py-1.5 rounded-full text-xs font-bold transition bg-blue-600 text-white shadow-sm";
+      applyFilters();
+    }
+
+    function setPrefFilter(pref) {
+      selectedPref = pref;
+      renderPrefPills();
+      applyFilters();
+    }
+
+    function toggleChip(btn, category, value) {
+      if (activeChips[category].has(value)) {
+        activeChips[category].delete(value);
+        btn.classList.remove('bg-blue-600', 'text-white');
+        btn.classList.add('bg-gray-100', 'text-gray-700');
+      } else {
+        activeChips[category].add(value);
+        btn.classList.remove('bg-gray-100', 'text-gray-700');
+        btn.classList.add('bg-blue-600', 'text-white');
+      }
+      applyFilters();
+    }
+
+    function onDistanceRangeInput(val) {
+      const num = parseInt(val, 10);
+      if (num >= 51) {
+        distanceLimitKm = Infinity;
+        document.getElementById('distanceBadge').textContent = '制限なし';
+        document.getElementById('sliderStatusText').textContent = '制限なし';
+      } else {
+        distanceLimitKm = num;
+        document.getElementById('distanceBadge').textContent = `${num}km`;
+        document.getElementById('sliderStatusText').textContent = `${num}km以内`;
+      }
+      applyFilters();
+    }
+
+    function setDistancePreset(km) {
+      const slider = document.getElementById('distanceRange');
+      slider.value = km;
+      onDistanceRangeInput(km);
+    }
+
+    async function geocodeAddressGSI(addressText) {
+      try {
+        const clean = addressText.trim();
+        const url = `https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(clean)}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data && data.length > 0 && data[0].geometry && data[0].geometry.coordinates) {
+          const [lng, lat] = data[0].geometry.coordinates;
+          return { lat, lng };
+        }
+      } catch (e) {
+        console.warn('GSI geocoding failed', e);
+      }
+      for (const [muni, coords] of Object.entries(MUNI_COORDS)) {
+        if (addressText.includes(muni)) return { lat: coords[0], lng: coords[1] };
+      }
+      return { lat: 35.6895, lng: 139.6917 };
+    }
+
+    function calcHubenyDistance(lat1, lon1, lat2, lon2) {
+      const rad = Math.PI / 180;
+      const phi1 = lat1 * rad;
+      const phi2 = lat2 * rad;
+      const lambda1 = lon1 * rad;
+      const lambda2 = lon2 * rad;
+      const a = 6378137.0;
+      const b = 6356752.314245;
+      const e2 = (a * a - b * b) / (a * a);
+      const dy = phi1 - phi2;
+      const dx = lambda1 - lambda2;
+      const my = (phi1 + phi2) / 2;
+      const w = Math.sqrt(1 - e2 * Math.sin(my) * Math.sin(my));
+      const m = (a * (1 - e2)) / (w * w * w);
+      const n = a / w;
+      const d = Math.sqrt((dy * m) * (dy * m) + (dx * n * Math.cos(my)) * (dx * n * Math.cos(my)));
+      return d / 1000;
+    }
+
+    async function calculateDistance() {
+      const addr = document.getElementById('addressInput').value.trim();
+      if (!addr) {
+        alert('住所または駅名を入力してください');
+        return;
+      }
+      showToast('住所の正確な座標を取得中...');
+      userBaseCoord = await geocodeAddressGSI(addr);
+
+      allJobs.forEach(job => {
+        let lat = job.lat;
+        let lng = job.lng;
+        if (!lat || !lng) {
+          for (const [muni, c] of Object.entries(MUNI_COORDS)) {
+            if ((job.city && job.city.includes(muni)) || (job.address && job.address.includes(muni))) {
+              lat = c[0];
+              lng = c[1];
+              break;
+            }
+          }
+          if (!lat) { lat = 35.6895; lng = 139.6917; }
+        }
+        job.distanceKm = calcHubenyDistance(userBaseCoord.lat, userBaseCoord.lng, lat, lng);
+      });
+
+      document.getElementById('sortSelect').value = 'distance';
+      showToast('距離を計算しました');
+      applyFilters();
+    }
+
+    function clearDistance() {
+      document.getElementById('addressInput').value = '';
+      userBaseCoord = null;
+      allJobs.forEach(j => delete j.distanceKm);
+      document.getElementById('sortSelect').value = 'newest';
+      applyFilters();
+    }
+
+    function onSearchChange() {
+      const val = document.getElementById('searchInput').value;
+      document.getElementById('clearSearchBtn').classList.toggle('hidden', !val);
+      applyFilters();
+    }
+
+    function clearSearch() {
+      document.getElementById('searchInput').value = '';
+      document.getElementById('clearSearchBtn').classList.add('hidden');
+      applyFilters();
+    }
+
+    function resetFilters() {
+      document.getElementById('searchInput').value = '';
+      document.getElementById('clearSearchBtn').classList.add('hidden');
+      document.getElementById('dateStart').value = '';
+      document.getElementById('dateEnd').value = '';
+      document.getElementById('sortSelect').value = 'newest';
+      selectedJobType = 'all';
+      selectedPref = 'all';
+      activeChips.shift.clear();
+      activeChips.type.clear();
+      document.querySelectorAll('.chip').forEach(c => {
+        c.classList.remove('bg-blue-600', 'text-white');
+        c.classList.add('bg-gray-100', 'text-gray-700');
+      });
+      setDistancePreset(5);
+      clearDistance();
+    }
+
+    function applyFilters() {
+      const query = document.getElementById('searchInput').value.trim().toLowerCase();
+      const dateStart = document.getElementById('dateStart').value;
+      const dateEnd = document.getElementById('dateEnd').value;
+      const sortMode = document.getElementById('sortSelect').value;
+
+      let filtered = allJobs.filter(job => {
+        const isKansai = KANSAI_PREFS.some(p => job.pref && job.pref.includes(p));
+        if (currentArea === '関東' && isKansai) return false;
+        if (currentArea === '関西' && !isKansai) return false;
+
+        if (selectedPref !== 'all' && (!job.pref || !job.pref.includes(selectedPref))) return false;
+
+        if (selectedJobType === '介護' && (!job.jobType || !job.jobType.includes('介護'))) return false;
+        if (selectedJobType === '看護' && (!job.jobType || !job.jobType.includes('看護'))) return false;
+
+        if (query) {
+          const target = `${job.facility} ${job.pref} ${job.city} ${job.address} ${job.jobType} ${job.facilityType} ${job.notes}`.toLowerCase();
+          if (!target.includes(query)) return false;
+        }
+
+        if (dateStart && job.date && job.date < dateStart) return false;
+        if (dateEnd && job.date && job.date > dateEnd) return false;
+
+        if (activeChips.shift.size > 0) {
+          const shifts = job.shifts || [];
+          const hasShift = Array.from(activeChips.shift).some(s => shifts.some(js => js.includes(s)));
+          if (!hasShift) return false;
+        }
+
+        if (activeChips.type.size > 0) {
+          const hasType = Array.from(activeChips.type).some(t => (job.facilityType && job.facilityType.includes(t)) || (job.facility && job.facility.includes(t)));
+          if (!hasType) return false;
+        }
+
+        if (userBaseCoord && job.distanceKm !== undefined) {
+          if (distanceLimitKm !== Infinity && job.distanceKm > distanceLimitKm) return false;
+        }
+
+        return true;
+      });
+
+      if (sortMode === 'distance') {
+        filtered.sort((a, b) => (a.distanceKm || 9999) - (b.distanceKm || 9999));
+      } else {
+        filtered.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      }
+
+      renderJobList(filtered);
+      updateCounts(filtered);
+    }
+
+    function updateCounts(filtered) {
+      document.getElementById('filteredCountText').textContent = filtered.length.toLocaleString();
+      const kaigoCount = allJobs.filter(j => j.jobType && j.jobType.includes('介護') && (currentArea === '関東' ? !KANSAI_PREFS.some(p => j.pref && j.pref.includes(p)) : KANSAI_PREFS.some(p => j.pref && j.pref.includes(p)))).length;
+      const kangoCount = allJobs.filter(j => j.jobType && j.jobType.includes('看護') && (currentArea === '関東' ? !KANSAI_PREFS.some(p => j.pref && j.pref.includes(p)) : KANSAI_PREFS.some(p => j.pref && j.pref.includes(p)))).length;
+      const totalArea = allJobs.filter(j => (currentArea === '関東' ? !KANSAI_PREFS.some(p => j.pref && j.pref.includes(p)) : KANSAI_PREFS.some(p => j.pref && j.pref.includes(p)))).length;
+
+      document.getElementById('countPillAll').textContent = totalArea;
+      document.getElementById('countPillKaigo').textContent = kaigoCount;
+      document.getElementById('countPillKango').textContent = kangoCount;
+      document.getElementById('totalHeaderCount').textContent = `${totalArea.toLocaleString()}件`;
+    }
+
+    function renderJobList(jobs) {
+      const container = document.getElementById('jobListContainer');
+      const noDataView = document.getElementById('noDataView');
+
+      if (jobs.length === 0) {
+        container.innerHTML = '';
+        noDataView.classList.remove('hidden');
+        return;
+      }
+      noDataView.classList.add('hidden');
+
+      const html = jobs.slice(0, 100).map(job => {
+        const isChecked = selectedJobIds.has(job.id);
+        const isKaigo = job.jobType && job.jobType.includes('介護');
+        const isKango = job.jobType && job.jobType.includes('看護');
+        const borderColor = isKaigo ? 'border-l-emerald-500' : isKango ? 'border-l-purple-500' : 'border-l-teal-500';
+        const jobBadgeClass = isKaigo ? 'bg-emerald-50 text-emerald-700' : isKango ? 'bg-purple-50 text-purple-700' : 'bg-teal-50 text-teal-700';
+
+        const shifts = job.shifts || [];
+        const shiftBadges = shifts.map(s => `
+          <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-[11px] font-bold rounded">${s}</span>
+        `).join('');
+
+        const distanceBadge = (job.distanceKm !== undefined) ? `
+          <span class="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+            ${job.distanceKm.toFixed(1)} km
+          </span>
+        ` : '';
+
+        return `
+          <div class="bg-white rounded-xl shadow-sm border border-gray-200/90 border-l-4 ${borderColor} p-3.5 sm:p-4 hover:shadow-md transition">
+            <div class="flex items-start justify-between gap-3">
+              <div class="flex-1 min-w-0">
+                <div class="flex flex-wrap items-center gap-2 mb-1">
+                  <span class="px-2 py-0.5 rounded text-xs font-bold ${jobBadgeClass}">${job.jobType || '職種未定'}</span>
+                  <span class="px-2 py-0.5 rounded text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">${job.facilityType || '施設形態'}</span>
+                  <h3 class="font-bold text-gray-900 text-sm sm:text-base truncate inline">${job.facility}</h3>
+                </div>
+
+                <div class="text-xs text-gray-600 mb-2 flex items-center gap-2">
+                  <span class="border-b border-dashed border-gray-400 pb-0.5">${job.pref || ''}${job.city || ''}${job.address || ''}</span>
+                  ${distanceBadge}
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2 text-xs">
+                  <span class="text-gray-400 font-medium">${job.date || ''}</span>
+                  <div class="flex items-center gap-1">${shiftBadges}</div>
+                </div>
+
+                ${job.notes ? `<div class="mt-2.5 text-xs text-gray-500 bg-gray-50 p-2.5 rounded-lg whitespace-pre-wrap leading-relaxed border border-gray-100">${job.notes}</div>` : ''}
+              </div>
+
+              <div class="pt-0.5">
+                <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleJobSelect('${job.id}')"
+                       class="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      container.innerHTML = html;
+    }
+
+    function toggleJobSelect(id) {
+      if (selectedJobIds.has(id)) selectedJobIds.delete(id);
+      else selectedJobIds.add(id);
+      updateSelectedBar();
+    }
+
+    function selectAll() {
+      allJobs.slice(0, 100).forEach(j => selectedJobIds.add(j.id));
+      updateSelectedBar();
+      applyFilters();
+    }
+
+    function deselectAll() {
+      selectedJobIds.clear();
+      updateSelectedBar();
+      applyFilters();
+    }
+
+    function updateSelectedBar() {
+      document.getElementById('selectedCountBadge').textContent = `${selectedJobIds.size}件選択中`;
+    }
+
+    function copySelectedJobs() {
+      if (selectedJobIds.size === 0) {
+        alert('案件の右端にあるチェックボックスで選択してください');
+        return;
+      }
+
+      const selected = allJobs.filter(j => selectedJobIds.has(j.id));
+      const formatted = selected.map((j, idx) => {
+        const distStr = j.distanceKm !== undefined ? `（距離: ${j.distanceKm.toFixed(1)}km）` : '';
+        const shifts = (j.shifts || []).join('・');
+        return `【案件情報 ${idx + 1}】\n・施設名：${j.facility}\n・職種：${j.jobType}\n・施設形態：${j.facilityType}\n・所在地：${j.pref || ''}${j.city || ''}${j.address || ''}${distStr}\n・シフト：${shifts}\n・備考：\n${j.notes || 'なし'}\n--------------------`;
+      }).join('\n\n');
+
+      navigator.clipboard.writeText(formatted).then(() => {
+        showToast(`${selected.length}件の案件情報をコピーしました！`);
+      }).catch(() => {
+        alert('クリップボードへのコピーに失敗しました');
+      });
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastMsg').textContent = msg;
+      toast.classList.remove('opacity-0', 'pointer-events-none');
+      setTimeout(() => toast.classList.add('opacity-0', 'pointer-events-none'), 2500);
+    }
+
+    function handleFileSelect(evt) {
+      const file = evt.target.files[0];
+      if (!file) return;
+
+      const progressDiv = document.getElementById('uploadProgress');
+      const progressBar = document.getElementById('progressBar');
+      const progressPercent = document.getElementById('progressPercent');
+      progressDiv.classList.remove('hidden');
+
+      const parsedJobs = [];
+      const totalBytes = file.size;
+
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        chunkSize: 1024 * 1024 * 2,
+        chunk: (results, parser) => {
+          results.data.forEach((row, i) => {
+            const facility = row['施設名'] || row['施設'] || row['事業所名'] || '';
+            if (!facility) return;
+
+            const pref = row['都道府県'] || '';
+            const city = row['市区町村'] || '';
+            const address = row['町域・番地・建物名'] || row['住所'] || '';
+            const jobType = row['職種'] || '介護';
+            const facilityType = row['サービス種別'] || row['施設形態'] || '一般';
+            const shiftsRaw = row['シフト'] || '日勤';
+            const shifts = shiftsRaw.split(/[,、・\/\s]+/).filter(Boolean);
+            const notes = row['備考'] || '';
+            const date = row['更新日時'] || row['獲得日時'] || '2026/11/12';
+
+            parsedJobs.push({
+              id: `csv_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 4)}`,
+              facility, pref, city, address, jobType, facilityType, shifts, notes, date
+            });
+          });
+
+          const currentBytes = results.meta.cursor || 0;
+          const pct = Math.min(100, Math.round((currentBytes / totalBytes) * 100));
+          progressBar.style.width = `${pct}%`;
+          progressPercent.textContent = `${pct}%`;
+        },
+        complete: async () => {
+          progressBar.style.width = '100%';
+          progressPercent.textContent = '100%';
+          showToast(`${parsedJobs.length.toLocaleString()}件を取り込み中...`);
+
+          const facilityMap = new Map();
+          parsedJobs.forEach(j => {
+            const key = `${j.facility}_${j.jobType}`;
+            if (!facilityMap.has(key)) facilityMap.set(key, j);
+          });
+          const merged = Array.from(facilityMap.values());
+
+          allJobs = merged;
+          await saveJobsToDB(merged);
+
+          setTimeout(() => {
+            progressDiv.classList.add('hidden');
+            closeCsvModal();
+            updateAreaBadges();
+            renderPrefPills();
+            applyFilters();
+            showToast('手動取り込みが完了しました！');
+          }, 600);
+        },
+        error: (err) => {
+          alert('CSV読み込み中にエラーが発生しました: ' + err.message);
+          progressDiv.classList.add('hidden');
+        }
+      });
+    }
+  </script>
+</body>
+</html>
