@@ -331,14 +331,16 @@
     function lookupCoordsFromDict(pref, city, address) {
       if (!pref || !TOWN_COORDS_DICT[pref]) return null;
       const prefObj = TOWN_COORDS_DICT[pref];
+      const sortedCityKeys = Object.keys(prefObj).sort((a, b) => b.length - a.length);
       let cityKey = null;
 
       if (city && prefObj[city]) {
         cityKey = city;
-      } else {
-        const cleanCity = (city || "").replace(/^.*郡/, "");
-        for (const k of Object.keys(prefObj)) {
-          if (k === cleanCity || k.endsWith(cleanCity) || (city && k.includes(city))) {
+      } else if (city) {
+        const cleanCity = city.replace(/^.*郡/, "");
+        for (const k of sortedCityKeys) {
+          const shortK = k.replace(/^.*郡/, "");
+          if (k === city || shortK === cleanCity || (cleanCity.length >= 2 && k.endsWith(cleanCity))) {
             cityKey = k;
             break;
           }
@@ -346,7 +348,7 @@
       }
 
       if (!cityKey && address) {
-        for (const k of Object.keys(prefObj)) {
+        for (const k of sortedCityKeys) {
           const shortK = k.replace(/^.*郡/, "");
           if (address.includes(k) || (shortK.length >= 2 && address.includes(shortK))) {
             cityKey = k;
@@ -529,18 +531,9 @@
 
       showToast("地点を検索中...");
 
-      for (const pref of Object.keys(TOWN_COORDS_DICT)) {
-        if (q.includes(pref)) {
-          const found = lookupCoordsFromDict(pref, "", q);
-          if (found) {
-            setBaseLocation(found.lat, found.lng, `${q}（辞書照合: ${found.matchedTown}）`);
-            return;
-          }
-        }
-      }
-
       try {
-        if (q.endsWith("駅") || !/[0-9０-９丁目番地号市町村区]/.test(q)) {
+        // 1. 駅名検索（末尾が「駅」、または住所特有の文字がない場合）
+        if (q.endsWith("駅") || !/[0-9０-９丁目番地号都道府県市区町村]/.test(q)) {
           const stName = q.replace(/駅$/, "");
           const hrRes = await fetch(`https://express.heartrails.com/api/json?method=getStations&name=${encodeURIComponent(stName)}`);
           if (hrRes.ok) {
@@ -553,6 +546,7 @@
           }
         }
 
+        // 2. 国土地理院 住所検索API（ピンポイント座標を最優先取得）
         const gsiRes = await fetch(`https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(q)}`);
         if (gsiRes.ok) {
           const gsiData = await gsiRes.json();
@@ -565,6 +559,17 @@
         }
       } catch (err) {
         console.warn("外部ジオコーディングエラー:", err);
+      }
+
+      // 3. フォールバック：ローカル町丁目辞書から検索
+      for (const pref of Object.keys(TOWN_COORDS_DICT)) {
+        if (q.includes(pref)) {
+          const found = lookupCoordsFromDict(pref, "", q);
+          if (found) {
+            setBaseLocation(found.lat, found.lng, `${q}（辞書照合: ${found.matchedTown}）`);
+            return;
+          }
+        }
       }
 
       showToast("地点が見つかりませんでした。都道府県や駅名を含めてお試しください。");
