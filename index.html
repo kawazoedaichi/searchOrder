@@ -188,15 +188,13 @@
           <input type="range" id="distanceRange" min="1" max="51" value="51" step="1"
                  class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider-thumb touch-range focus:outline-none"
                  oninput="onDistanceRangeInput(this.value)">
-          <div class="flex justify-between text-[10px] sm:text-xs text-gray-400 mt-2 px-1 font-semibold select-none">
-            <span class="cursor-pointer hover:text-blue-600" onclick="setDistancePreset(1)">1km</span>
-            <span class="cursor-pointer hover:text-blue-600" onclick="setDistancePreset(5)">5</span>
-            <span class="cursor-pointer hover:text-blue-600" onclick="setDistancePreset(10)">10</span>
-            <span class="cursor-pointer hover:text-blue-600" onclick="setDistancePreset(20)">20</span>
-            <span class="cursor-pointer hover:text-blue-600" onclick="setDistancePreset(30)">30</span>
-            <span class="cursor-pointer hover:text-blue-600" onclick="setDistancePreset(40)">40</span>
-            <span class="cursor-pointer hover:text-blue-600" onclick="setDistancePreset(50)">50km+</span>
-            <span class="cursor-pointer hover:text-blue-600" onclick="setDistancePreset(51)">制限なし</span>
+          <div class="relative h-5 text-[10px] sm:text-xs text-gray-400 mt-2 font-semibold select-none">
+            <span class="absolute left-0 cursor-pointer hover:text-blue-600" onclick="setDistancePreset(1)">1km</span>
+            <span class="absolute -translate-x-1/2 cursor-pointer hover:text-blue-600" style="left: 18%" onclick="setDistancePreset(10)">10</span>
+            <span class="absolute -translate-x-1/2 cursor-pointer hover:text-blue-600" style="left: 38%" onclick="setDistancePreset(20)">20</span>
+            <span class="absolute -translate-x-1/2 cursor-pointer hover:text-blue-600" style="left: 58%" onclick="setDistancePreset(30)">30</span>
+            <span class="absolute -translate-x-1/2 cursor-pointer hover:text-blue-600" style="left: 78%" onclick="setDistancePreset(40)">40</span>
+            <span class="absolute right-0 cursor-pointer hover:text-blue-600" onclick="setDistancePreset(51)">制限なし</span>
           </div>
         </div>
       </div>
@@ -1326,7 +1324,16 @@
         return `■ ${idx + 1}. ${j.facility}\n施設形態：${shortType}\nエリア：${area}\n勤務時間：${workTime}${notesLine}\n―――`;
       }).join("\n\n");
 
-      const footer = `\n\n※時給相場：介護 1,500〜1,800円程度／看護 2,200〜2,450円程度（資格・経験により変動します）\n※勤務時間やシフトは直近のオーダー内容です。ご状況に合わせて相談・調整も可能ですのでお気軽にどうぞ！\n\n気になる案件がございましたら下記をご返信ください📩\n\n【ご返信テンプレート】\n気になる案件：\n見学希望日：\n\n※応募者多数のため、2〜3件エントリーがおすすめです！`;
+      const hasKaigo = targets.some(j => (j.jobTypes || [j.jobType]).includes("介護"));
+      const hasKango = targets.some(j => (j.jobTypes || [j.jobType]).includes("看護"));
+      let wageLabel = "介護 1,500〜1,800円程度／看護 2,200〜2,450円程度";
+      if (hasKaigo && !hasKango) {
+        wageLabel = "介護 1,500〜1,800円程度";
+      } else if (hasKango && !hasKaigo) {
+        wageLabel = "看護 2,200〜2,450円程度";
+      }
+
+      const footer = `\n\n※時給相場：${wageLabel}（資格・経験により変動します）\n※勤務時間やシフトは直近のオーダー内容です。ご状況に合わせて相談・調整も可能ですのでお気軽にどうぞ！\n\n気になる案件がございましたら下記をご返信ください📩\n\n【ご返信テンプレート】\n気になる案件：\n見学希望日：\n\n※応募者多数のため、2〜3件エントリーがおすすめです！`;
 
       const text = header + body + footer;
 
