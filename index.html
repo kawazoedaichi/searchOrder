@@ -876,18 +876,52 @@
       document.getElementById("selectedCountBadge").textContent = `${selectedJobIds.size}件選択中`;
     }
 
+    function formatShortFacilityType(rawType) {
+      const t = String(rawType || "");
+      if (t.includes("介護老人福祉施設") || t.includes("特養")) return "特養";
+      if (t.includes("介護老人保健施設") || t.includes("老健")) return "老健";
+      if (t.includes("有料老人ホーム")) return "有料";
+      if (t.includes("認知症対応型共同生活介護") || t.includes("グループホーム")) return "GH";
+      if (t.includes("サービス付き高齢者向け住宅") || t.includes("サ高住")) return "サ高住";
+      if (t.includes("通所介護") || t.includes("通所リハビリ")) return "デイ";
+      if (t.includes("短期入所")) return "ショート";
+      if (t.includes("訪問介護")) return "訪問介護";
+      if (t.includes("訪問看護")) return "訪問看護";
+      if (t.includes("小規模多機能")) return "小多機";
+      if (t.includes("一般") || t.includes("病院") || t.includes("介護医療院")) return "病院";
+      return t || "施設";
+    }
+
+    function extractWorkHoursSummary(notes, shifts) {
+      const shiftStr = (shifts && shifts.length > 0) ? shifts.join("・") : "日勤";
+      if (!notes) return `${shiftStr} (${shiftStr})`;
+      const timeMatches = notes.match(/(?:早番|早出|日勤|遅番|遅出|夜勤)?[：:・\s]*\d{1,2}[:：時]\d{0,2}\s*[〜～\-－ー]\s*(?:翌)?\d{1,2}[:：時]\d{0,2}/g);
+      if (timeMatches && timeMatches.length > 0) {
+        const cleaned = Array.from(new Set(timeMatches.map(s => s.trim()))).slice(0, 3).join(" / ");
+        return `${shiftStr} (${cleaned})`;
+      }
+      return `${shiftStr} (${shiftStr})`;
+    }
+
     function copySelectedJobs() {
       if (selectedJobIds.size === 0) {
         showToast("コピーする案件を選択してください");
         return;
       }
-      const targets = allJobs.filter(j => selectedJobIds.has(j.id));
-      const text = targets.map(j => {
-        const distStr = (baseCoords && j.lat != null && j.lng != null)
-          ? `（基準地点から約${calcDistanceKm(baseCoords.lat, baseCoords.lng, j.lat, j.lng).toFixed(1)}km）`
-          : "";
-        return `■ ${j.facility}【${j.jobType}】${distStr}\n住所：${j.pref}${j.city}${j.address}\n形態：${j.facilityType}\n詳細：\n${j.notes || "記載なし"}`;
-      }).join("\n\n--------------------------------\n\n");
+      const orderedTargets = filteredJobs.filter(j => selectedJobIds.has(j.id));
+      const targets = orderedTargets.length > 0 ? orderedTargets : allJobs.filter(j => selectedJobIds.has(j.id));
+
+      const header = "📋 案件候補のご案内\n\n";
+      const body = targets.map((j, idx) => {
+        const shortType = formatShortFacilityType(j.facilityType);
+        const area = `${j.pref || ""}${j.city || ""}${j.address || ""}`;
+        const workTime = extractWorkHoursSummary(j.notes, j.shifts);
+        return `■ ${idx + 1}. ${j.facility}\n施設形態：${shortType}\nエリア：${area}\n勤務時間：${workTime}\n---`;
+      }).join("\n\n");
+
+      const footer = `\n\n※時給相場：介護 1,500〜1,800円程度／看護 2,200〜2,450円程度（資格・経験により変動します）\n※勤務時間やシフトは直近のオーダー内容です。ご状況に合わせて相談・調整も可能ですのでお気軽にどうぞ！\n\n気になる案件がございましたら下記をご返信ください📩\n\n【ご返信テンプレート】\n気になる案件：\n見学希望日：\n\n※応募者多数のため、2〜3件エントリーがおすすめです！`;
+
+      const text = header + body + footer;
 
       navigator.clipboard.writeText(text).then(() => {
         showToast(`${targets.length}件の案件をコピーしました`);
