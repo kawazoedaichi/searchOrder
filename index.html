@@ -458,13 +458,12 @@
     function normalizeEmpType(rawEmpType, notes) {
       let s = String(rawEmpType || "").trim();
       if (!s && notes) {
-        const m = String(notes).match(/【(?:就業形態|取引種別)】\s*([^
-【]+)/);
+        const m = String(notes).match(/【(?:就業形態|取引種別)】\s*([^\n\r【]+)/);
         if (m) s = m[1].trim();
       }
       if (!s && notes) {
         const n = String(notes);
-        if (/紹介予定派遣|TTP/i.test(n)) return "紹介予定派遣";
+        if (/紹介予定派遣|\bTTP\b/i.test(n)) return "紹介予定派遣";
         if (/紹介のみ|正社員採用|正社員紹介|常勤のみ|パート紹介/.test(n)) return "紹介";
       }
       if (!s) return "派遣";
