@@ -420,24 +420,82 @@
     let activeFacilityTypes = new Set();
     let displayLimit = 100;
 
-    // 施設名＋住所が同じ案件を重複統合（シフト・雇用形態・備考をマージし、BO取得日時は最新を採用）
-    function normalizeKeyStr(str) {
-      return String(str || "")
+    // 高精度マージ用：施設名・住所・番地・ビル名・漢数字・カタカナ・記号の表記ゆれを完全正規化
+    function normalizeFacilityKey(str) {
+      let s = String(str || "")
+        .normalize("NFKC") // 全角英数字・半角カナ・記号を統一
+        .replace(/[\s　・･．.（）()【】\[\]「」『』<>＜＞\-－―ー−_＿/／]+/g, "")
+        .replace(/ヶ/g, "ケ")
+        .replace(/之/g, "ノ")
+        .replace(/ッ/g, "ツ")
+        .replace(/（ユニット型）|\(ユニット型\)|ユニット型|（従来型）|\(従来型\)|従来型/g, "");
+      // 法人格の表記ゆれ統一
+      s = s.replace(/株式会社|\(株\)|（株）|有限会社|\(有\)|（有）|社会福祉法人|\(福\)|（福）|医療法人社団|医療法人財団|医療法人|\(医\)|（医）|一般社団法人|合同会社/g, "");
+      return s.toLowerCase();
+    }
+
+    function normalizeAddressKey(str) {
+      let s = String(str || "")
+        .normalize("NFKC")
         .replace(/[\s　]+/g, "")
-        .replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
-        .replace(/[‐‑‒–—―ー−]/g, "-")
-        .replace(/ヶ/g, "ケ");
+        .replace(/ヶ/g, "ケ")
+        .replace(/之/g, "ノ")
+        .replace(/ッ/g, "ツ")
+        .replace(/[‐‑‒–—―ー−]/g, "-");
+
+      // 漢数字の丁目・番地を半角アラビア数字へ統一（例: 一丁目2番3号 -> 1-2-3）
+      const kanjiDigitMap = { "〇":"0", "一":"1", "二":"2", "三":"3", "四":"4", "五":"5", "六":"6", "七":"7", "八":"8", "九":"9" };
+      s = s.replace(/十([一二三四五六七八九])/g, (_, d) => "1" + kanjiDigitMap[d]);
+      s = s.replace(/([二三四五六七八九])十([一二三四五六七八九])/g, (_, d1, d2) => kanjiDigitMap[d1] + kanjiDigitMap[d2]);
+      s = s.replace(/([二三四五六七八九])十/g, (_, d) => kanjiDigitMap[d] + "0");
+      s = s.replace(/十/g, "10");
+      s = s.replace(/[〇一二三四五六七八九]/g, ch => kanjiDigitMap[ch] || ch);
+
+      // 「1丁目2番地3号」や「1丁目2-3」を「1-2-3」に統一
+      s = s.replace(/(\d+)丁目(\d+)番地?(\d+)号?/g, "$1-$2-$3");
+      s = s.replace(/(\d+)丁目(\d+)番地?/g, "$1-$2");
+      s = s.replace(/(\d+)丁目/g, "$1-");
+      s = s.replace(/(\d+)番地?(\d+)号?/g, "$1-$2");
+      s = s.replace(/(\d+)番地?/g, "$1");
+      s = s.replace(/(\d+)号/g, "$1");
+      s = s.replace(/--+/g, "-").replace(/-$/, "");
+
+      // 建物名・階数などの後ろに付くノイズの軽微なゆれ（1F / 1階）を統一
+      s = s.replace(/(\d+)階/g, "$1f");
+      return s.toLowerCase();
+    }
+
+    function extractCoreBanchi(normAddr) {
+      // 都道府県＋市区町村＋町名＋主要番地（例: 神奈川県茅ケ崎市甘沼865-1）を抽出（後ろに建物名がくっついている場合の照合用）
+      const m = normAddr.match(/^(.+?[都道府県].+?[市区町村郡].*?\d+(?:-\d+)*)/);
+      return m ? m[1] : normAddr;
+    }
+
+    function normalizeKeyStr(str) {
+      return normalizeFacilityKey(str);
     }
 
     function mergeDuplicateJobs(jobs) {
       const map = new Map();
+      // 同一店舗・同一番地で建物名有無だけが異なるケースも捕捉する補助インデックス
+      const coreIndex = new Map();
+
       jobs.forEach((job) => {
-        const normFacility = normalizeKeyStr(job.facility);
-        const normAddr = normalizeKeyStr(formatFullAddress(job));
+        const normFacility = normalizeFacilityKey(job.facility);
+        const fullAddr = formatFullAddress(job);
+        const normAddr = normalizeAddressKey(fullAddr);
+        const coreAddr = extractCoreBanchi(normAddr);
         const normJobType = normalizeJobType(job.jobType);
         const normEmpType = normalizeEmpType(job.empType, "");
-        // 施設名 + 住所 + 職種(介護/看護) + 雇用形態(派遣/紹介予定派遣/紹介) の4要素がすべて一致するものだけを同一区分として扱う
-        const key = `${normFacility}__${normAddr}__${normJobType}__${normEmpType}`;
+
+        // 施設名 + 住所 + 職種(介護/看護) + 雇用形態(派遣/紹介予定派遣/紹介) の4要素が一致するものを同一区分とする
+        let key = `${normFacility}__${normAddr}__${normJobType}__${normEmpType}`;
+        const coreKey = `${normFacility}__${coreAddr}__${normJobType}__${normEmpType}`;
+
+        // 建物名有無だけの違い（例: 「関口1-14-12」と「関口1-14-12介護付き有料老人ホーム〜」）も同一案件として統合
+        if (!map.has(key) && coreAddr && coreIndex.has(coreKey)) {
+          key = coreIndex.get(coreKey);
+        }
 
         // 過去に別の区分と合体していた古い備考（\n---\n区切り）が含まれる場合は、先頭（当該区分自身）のみを使用
         const cleanRawNote = String(job.notes || "").split(/\n---\n/)[0].trim();
@@ -452,23 +510,32 @@
             notes: cleanRawNote,
             notesList: cleanRawNote ? [cleanRawNote] : []
           });
+          if (coreAddr && !coreIndex.has(coreKey)) {
+            coreIndex.set(coreKey, key);
+          }
         } else {
           const existing = map.get(key);
 
-          // 同じ区分の中で、より新しいBO取得日時のレコードが来たら、日時と備考を最新のものに更新する
+          // 同じ区分の中で、より新しいBO取得日時のレコードが来たら、日時・備考・シフトを最新のものに完全更新する
           if ((job.timestamp || 0) > (existing.timestamp || 0)) {
             existing.timestamp = job.timestamp;
             existing.date = job.date;
-            if (cleanRawNote) {
-              existing.notes = cleanRawNote;
-              existing.notesList = [cleanRawNote];
+            existing.notes = cleanRawNote;
+            existing.notesList = cleanRawNote ? [cleanRawNote] : [];
+            existing.shifts = Array.isArray(job.shifts) ? [...job.shifts] : [];
+            // より正式な施設名・正確な住所があれば更新
+            if (job.facility && job.facility.length >= (existing.facility || "").length) {
+              existing.facility = job.facility;
             }
           } else if ((job.timestamp || 0) === (existing.timestamp || 0)) {
-            // 同じBO取得日時の同一区分レコードが複数行ある場合のみ備考を重複なくマージ
+            // 同じBO取得日時の同一区分レコードが複数行ある場合のみ備考・シフトを重複なくマージ
             if (cleanRawNote && !existing.notesList.includes(cleanRawNote)) {
               existing.notesList.push(cleanRawNote);
               existing.notes = existing.notesList.join("\n");
             }
+            (job.shifts || []).forEach(s => {
+              if (s && !existing.shifts.includes(s)) existing.shifts.push(s);
+            });
           }
 
           // 座標が未設定なら補完
@@ -483,10 +550,14 @@
             existing.facilityType = job.facilityType;
           }
 
-          // シフトマージ
-          (job.shifts || []).forEach(s => {
-            if (s && !existing.shifts.includes(s)) existing.shifts.push(s);
-          });
+          // 住所に施設名が誤って連結されている短い方（綺麗な住所）があればそちらを採用
+          const curFull = formatFullAddress(existing);
+          const newFull = formatFullAddress(job);
+          if (newFull && curFull && newFull.length >= 8 && newFull.length < curFull.length && curFull.startsWith(newFull)) {
+            existing.pref = job.pref;
+            existing.city = job.city;
+            existing.address = job.address;
+          }
         }
       });
 
@@ -1021,6 +1092,11 @@
       const normCity = city.replace(/ヶ/g, "ケ");
       const normAddr = addr.replace(/ヶ/g, "ケ");
       if (normCity && normAddr.startsWith(normCity)) addr = addr.slice(normCity.length);
+      // 住所の末尾に施設名がそのままくっついていた場合は除去（例: 関口1-14-12介護付き有料老人ホーム... -> 関口1-14-12）
+      const fac = String(j.facility || "").trim();
+      if (fac && fac.length >= 4 && addr.endsWith(fac)) {
+        addr = addr.slice(0, -fac.length).trim();
+      }
       return `${pref}${city}${addr}`;
     }
 
