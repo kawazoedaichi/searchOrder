@@ -56,18 +56,18 @@
         </button>
       </div>
 
-      <button type="button" onclick="openCsvModalFromArea()" class="w-full py-3 px-4 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-bold rounded-xl transition flex items-center justify-center gap-2 border border-blue-200 cursor-pointer">
-        <i class="fa-solid fa-folder-open text-blue-600"></i> 手動でCSVを取り込む
+      <button type="button" onclick="openCsvModal()" class="w-full py-3 px-4 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl transition flex items-center justify-center gap-2 border border-blue-200 cursor-pointer">
+        <i class="fa-solid fa-bolt text-amber-500"></i> CSVを取り込んでサイト全体を自動更新
       </button>
     </div>
   </div>
 
-  <!-- CSV取り込みモーダル -->
+  <!-- CSV取り込み・自動GitHub更新モーダル -->
   <div id="csvModal" class="fixed inset-0 bg-black/60 z-50 items-center justify-center p-4" style="display: none;">
-    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+    <div class="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl max-h-[92vh] overflow-y-auto">
       <div class="flex items-center justify-between pb-3 border-b">
         <h3 class="text-lg font-bold text-gray-900 flex items-center gap-2">
-          <i class="fa-solid fa-file-csv text-blue-600"></i> CSV手動取り込み
+          <i class="fa-solid fa-bolt text-amber-500"></i> CSV自動更新・取り込み
         </h3>
         <button onclick="closeCsvModal()" class="text-gray-400 hover:text-gray-600 p-1">
           <i class="fa-solid fa-xmark text-lg"></i>
@@ -82,27 +82,57 @@
           </a>
         </div>
         <p class="text-gray-700">メタベース ＞ キカリ共通 ＞ バックオーダー</p>
+        <p class="text-[11px] text-gray-500 mt-1">※落とした大容量CSVをここに落とすだけで、軽量化してGitHubへ全自動同期します。</p>
       </div>
 
-      <div id="dropZone" class="mt-4 border-2 border-dashed border-gray-300 hover:border-blue-500 bg-gray-50 hover:bg-blue-50/40 rounded-2xl p-8 text-center cursor-pointer transition" onclick="document.getElementById('fileInput').click()">
-        <input type="file" id="fileInput" accept=".csv" class="hidden" multiple onchange="handleFileSelect(event)">
+      <!-- 初回トークン設定アコーディオン -->
+      <div class="mt-3 border border-gray-200 rounded-xl overflow-hidden bg-gray-50">
+        <button onclick="toggleGithubSettings()" class="w-full px-4 py-2.5 text-left text-xs font-bold text-gray-700 flex items-center justify-between hover:bg-gray-100 transition">
+          <span class="flex items-center gap-2"><i class="fa-brands fa-github text-sm"></i> GitHub自動更新設定（初回のみ）</span>
+          <span id="tokenStatusText" class="text-[11px] font-normal text-amber-600">未設定 ▽</span>
+        </button>
+        <div id="githubSettingsPanel" class="p-4 bg-white border-t border-gray-200 space-y-3 hidden text-xs">
+          <div>
+            <label class="block font-bold text-gray-700 mb-1">GitHub Personal Access Token (PAT)</label>
+            <input type="password" id="ghTokenInput" placeholder="ghp_xxxxxxxxxxxx" class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            <p class="text-[10px] text-gray-400 mt-1">※このブラウザ内にのみ安全に保存されます。repo権限を持つトークンが必要です。</p>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block font-bold text-gray-700 mb-1">オーナー名 (ユーザー名)</label>
+              <input type="text" id="ghOwnerInput" value="kawazoedaichi" class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-xs">
+            </div>
+            <div>
+              <label class="block font-bold text-gray-700 mb-1">リポジトリ名</label>
+              <input type="text" id="ghRepoInput" value="searchOrder" class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-xs">
+            </div>
+          </div>
+          <button onclick="saveGithubConfig()" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition">設定を保存する</button>
+        </div>
+      </div>
+
+      <!-- CSVドロップゾーン -->
+      <div id="dropZone" class="mt-4 border-2 border-dashed border-blue-400 hover:border-blue-600 bg-blue-50/40 rounded-2xl p-8 text-center cursor-pointer transition" onclick="document.getElementById('fileInput').click()">
+        <input type="file" id="fileInput" accept=".csv" class="hidden" onchange="processAndUploadCSV(this.files[0])">
         <div class="text-4xl text-blue-500 mb-2"><i class="fa-solid fa-cloud-arrow-up"></i></div>
-        <p class="text-sm font-bold text-gray-700">ここにCSVをドラッグ＆ドロップ</p>
-        <p class="text-xs text-gray-500 mt-1">またはタップしてファイルを選択</p>
+        <p class="text-sm font-bold text-gray-800">ここにMetabaseのCSVをドロップ</p>
+        <p class="text-xs text-gray-500 mt-1">軽量化＋GitHub自動反映まで全自動で完了します</p>
       </div>
 
-      <div id="uploadProgress" class="mt-4 hidden">
-        <div class="flex justify-between text-xs text-gray-600 mb-1">
-          <span id="progressText">読み込み中...</span>
-          <span id="progressPercent">0%</span>
+      <!-- 進捗・ステータス表示 -->
+      <div id="uploadStatusBox" class="mt-4 hidden p-3 rounded-xl border text-xs">
+        <div class="flex items-center justify-between font-bold mb-1">
+          <span id="uploadStatusTitle">処理中...</span>
+          <span id="uploadStatusPct">0%</span>
         </div>
-        <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-          <div id="progressBar" class="bg-blue-600 h-2 rounded-full transition-all duration-200" style="width: 0%"></div>
+        <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden mb-2">
+          <div id="uploadStatusBar" class="bg-blue-600 h-2 rounded-full transition-all duration-200" style="width: 0%"></div>
         </div>
+        <p id="uploadStatusDetail" class="text-gray-600 text-[11px] leading-relaxed"></p>
       </div>
 
       <div class="mt-6 flex justify-end gap-3">
-        <button onclick="closeCsvModal()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg transition">閉じる</button>
+        <button onclick="closeCsvModal()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition">閉じる</button>
       </div>
     </div>
   </div>
@@ -118,7 +148,7 @@
         </button>
       </div>
       <button onclick="openCsvModal()" class="px-3 py-1.5 bg-white border border-gray-300 hover:border-blue-500 text-gray-700 hover:text-blue-600 rounded-lg text-xs font-bold shadow-sm transition flex items-center gap-1.5">
-        <i class="fa-solid fa-folder-open text-blue-600"></i> <span class="hidden sm:inline">CSV</span>手動取り込み
+        <i class="fa-solid fa-bolt text-amber-500"></i> <span class="hidden sm:inline">CSV</span>自動更新
       </button>
     </div>
 
@@ -243,7 +273,7 @@
     <div id="noDataView" class="hidden py-16 text-center bg-white rounded-2xl border border-dashed border-gray-300 mt-3">
       <div class="text-4xl mb-3 text-gray-400">🔍</div>
       <p class="font-bold text-gray-700">該当する案件がありません</p>
-      <p class="text-xs text-gray-500 mt-1">条件を変更するか、右上の取り込みからデータを追加してください。</p>
+      <p class="text-xs text-gray-500 mt-1">右上の「CSV自動更新」から最新ファイルをドロップしてください。</p>
     </div>
   </main>
 
@@ -344,28 +374,26 @@
       }
     }
 
-    // 起動時にリポジトリ直下の jobs.json を自動取得試行
     async function tryLoadRemoteJson() {
       try {
         const res = await fetch('./jobs.json', { cache: 'no-cache' });
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
-            console.log(`リモート jobs.json から ${data.length} 件を自動取得`);
+            console.log(`リモート jobs.json から ${data.length} 件を読み込みました`);
             await saveJobsToDB(data);
             return data;
           }
         }
       } catch (err) {
-        console.warn('jobs.json の自動読み込みスキップ:', err);
+        console.warn('jobs.json 自動取得スキップ:', err);
       }
       return null;
     }
 
     window.addEventListener('DOMContentLoaded', async () => {
-      // 1. リポジトリ上の jobs.json をチェック
+      loadGithubConfig();
       let loaded = await tryLoadRemoteJson();
-      // 2. なければローカル保存データをチェック
       if (!loaded || loaded.length === 0) {
         const local = await loadJobsFromDB();
         loaded = (local && local.length > 0) ? local : DUMMY_JOBS;
@@ -387,15 +415,228 @@
 
     function openAreaModal() { document.getElementById('areaModal').style.display = 'flex'; }
     function closeAreaModal() { document.getElementById('areaModal').style.display = 'none'; }
-    function openCsvModalFromArea() { closeAreaModal(); openCsvModal(); }
-    function openCsvModal() { document.getElementById('csvModal').style.display = 'flex'; }
+    function openCsvModal() {
+      closeAreaModal();
+      document.getElementById('csvModal').style.display = 'flex';
+      checkTokenStatus();
+    }
     function closeCsvModal() { document.getElementById('csvModal').style.display = 'none'; }
+
+    // GitHub PAT 設定の管理
+    function toggleGithubSettings() {
+      const panel = document.getElementById('githubSettingsPanel');
+      panel.classList.toggle('hidden');
+    }
+
+    function loadGithubConfig() {
+      const token = localStorage.getItem('gh_token') || '';
+      const owner = localStorage.getItem('gh_owner') || 'kawazoedaichi';
+      const repo = localStorage.getItem('gh_repo') || 'searchOrder';
+      if (document.getElementById('ghTokenInput')) {
+        document.getElementById('ghTokenInput').value = token;
+        document.getElementById('ghOwnerInput').value = owner;
+        document.getElementById('ghRepoInput').value = repo;
+      }
+      checkTokenStatus();
+    }
+
+    function checkTokenStatus() {
+      const token = localStorage.getItem('gh_token');
+      const badge = document.getElementById('tokenStatusText');
+      if (!badge) return;
+      if (token) {
+        badge.textContent = '✅ 設定済み';
+        badge.className = 'text-[11px] font-bold text-green-600';
+      } else {
+        badge.textContent = '⚠ 未設定（開いて設定）▽';
+        badge.className = 'text-[11px] font-bold text-amber-600';
+      }
+    }
+
+    function saveGithubConfig() {
+      const token = document.getElementById('ghTokenInput').value.trim();
+      const owner = document.getElementById('ghOwnerInput').value.trim();
+      const repo = document.getElementById('ghRepoInput').value.trim();
+      if (!token) {
+        alert('GitHubのアクセストークンを入力してください');
+        return;
+      }
+      localStorage.setItem('gh_token', token);
+      localStorage.setItem('gh_owner', owner);
+      localStorage.setItem('gh_repo', repo);
+      checkTokenStatus();
+      toggleGithubSettings();
+      showToast('GitHub設定を保存しました');
+    }
+
+    // CSV解析＋軽量化＋GitHub API直接プッシュ
+    function processAndUploadCSV(file) {
+      if (!file) return;
+
+      const token = localStorage.getItem('gh_token');
+      const owner = localStorage.getItem('gh_owner') || 'kawazoedaichi';
+      const repo = localStorage.getItem('gh_repo') || 'searchOrder';
+
+      const statusBox = document.getElementById('uploadStatusBox');
+      const statusTitle = document.getElementById('uploadStatusTitle');
+      const statusPct = document.getElementById('uploadStatusPct');
+      const statusBar = document.getElementById('uploadStatusBar');
+      const statusDetail = document.getElementById('uploadStatusDetail');
+
+      statusBox.classList.remove('hidden');
+      statusBox.className = "mt-4 p-3 rounded-xl border border-blue-200 bg-blue-50/50 text-xs text-blue-900";
+      statusTitle.textContent = "1/2 CSV解析・軽量化中...";
+      statusPct.textContent = "0%";
+      statusBar.style.width = "0%";
+
+      const facilityMap = new Map();
+      let rowCount = 0;
+      const totalBytes = file.size;
+
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        chunkSize: 1024 * 1024 * 3,
+        chunk: (results) => {
+          results.data.forEach((row) => {
+            const facility = row['施設名'] || row['施設'] || row['事業所名'] || '';
+            if (!facility) return;
+
+            const pref = row['都道府県'] || '';
+            const city = row['市区町村'] || '';
+            const address = row['町域・番地・建物名'] || row['住所'] || '';
+            const jobType = row['職種'] || '介護';
+            const facilityType = row['サービス種別'] || row['施設形態'] || '一般';
+            const shiftsRaw = row['シフト'] || '日勤';
+            const shifts = shiftsRaw.split(/[,、・\/\s]+/).filter(Boolean);
+            const notes = row['備考'] || '';
+            const date = row['更新日時'] || row['獲得日時'] || '';
+
+            const key = `${facility}_${jobType}`;
+            if (!facilityMap.has(key)) {
+              facilityMap.set(key, {
+                id: `job_${rowCount++}`,
+                facility, pref, city, address, jobType, facilityType, shifts, notes, date
+              });
+            }
+          });
+
+          const currentBytes = results.meta.cursor || 0;
+          const pct = Math.min(80, Math.round((currentBytes / totalBytes) * 80));
+          statusBar.style.width = `${pct}%`;
+          statusPct.textContent = `${pct}%`;
+          statusDetail.textContent = `解析中: ${rowCount.toLocaleString()} 件処理済み`;
+        },
+        complete: async () => {
+          const cleanJobs = Array.from(facilityMap.values());
+          statusBar.style.width = "85%";
+          statusPct.textContent = "85%";
+
+          // ローカル即時反映
+          allJobs = cleanJobs;
+          await saveJobsToDB(cleanJobs);
+          updateAreaBadges();
+          renderPrefPills();
+          applyFilters();
+
+          // GitHubトークンがある場合は直接アップロード
+          if (token) {
+            statusTitle.textContent = "2/2 GitHubリポジトリへ自動アップロード中...";
+            statusDetail.textContent = `${cleanJobs.length.toLocaleString()}件（約2MB）を jobs.json に同期中...`;
+
+            try {
+              await uploadJobsJsonToGithub(token, owner, repo, cleanJobs);
+              statusBar.style.width = "100%";
+              statusPct.textContent = "100%";
+              statusBox.className = "mt-4 p-3 rounded-xl border border-green-200 bg-green-50 text-xs text-green-900";
+              statusTitle.textContent = "✅ GitHubへの自動反映が完了しました！";
+              statusDetail.textContent = `全ユーザーの検索サイトが自動更新されました（件数: ${cleanJobs.length.toLocaleString()}件）。`;
+              showToast('GitHubへ正常に同期されました！');
+              setTimeout(() => closeCsvModal(), 1800);
+            } catch (err) {
+              console.error(err);
+              statusBox.className = "mt-4 p-3 rounded-xl border border-red-200 bg-red-50 text-xs text-red-900";
+              statusTitle.textContent = "⚠ GitHubアップロード失敗";
+              statusDetail.textContent = `エラー: ${err.message}（トークン権限やリポジトリ名を確認してください。ローカル画面への取り込みは完了しています）`;
+            }
+          } else {
+            // トークン未設定時はローカル反映のみで完了案内
+            statusBar.style.width = "100%";
+            statusPct.textContent = "100%";
+            statusBox.className = "mt-4 p-3 rounded-xl border border-amber-200 bg-amber-50 text-xs text-amber-900";
+            statusTitle.textContent = "✅ このブラウザへの取り込み完了";
+            statusDetail.textContent = `※GitHubのアクセストークンを設定すると、全自動で全社員のサイトに即時同期できるようになります。`;
+            showToast('画面に取り込みました');
+            setTimeout(() => closeCsvModal(), 2000);
+          }
+        },
+        error: (err) => {
+          statusBox.className = "mt-4 p-3 rounded-xl border border-red-200 bg-red-50 text-xs text-red-900";
+          statusTitle.textContent = "エラー";
+          statusDetail.textContent = err.message;
+        }
+      });
+    }
+
+    // GitHub API経由で jobs.json を作成/更新する関数
+    async function uploadJobsJsonToGithub(token, owner, repo, data) {
+      const path = 'jobs.json';
+      const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+
+      // 既存の jobs.json の sha（コミット識別子）を取得
+      let sha = null;
+      try {
+        const getRes = await fetch(apiUrl, {
+          headers: {
+            'Authorization': `token ${token}`,
+            'Accept': 'application/vnd.github.v3+json'
+          }
+        });
+        if (getRes.ok) {
+          const fileInfo = await getRes.json();
+          sha = fileInfo.sha;
+        }
+      } catch (e) {
+        // 新規作成時はshaなし
+      }
+
+      // JSON文字列をUTF-8 Base64にエンコード
+      const jsonStr = JSON.stringify(data);
+      const encoder = new TextEncoder();
+      const uint8Array = encoder.encode(jsonStr);
+      let binary = '';
+      for (let i = 0; i < uint8Array.byteLength; i++) {
+        binary += String.fromCharCode(uint8Array[i]);
+      }
+      const base64Content = btoa(binary);
+
+      const bodyData = {
+        message: `Update jobs.json via Web App (${new Date().toLocaleDateString('ja-JP')})`,
+        content: base64Content
+      };
+      if (sha) bodyData.sha = sha;
+
+      const putRes = await fetch(apiUrl, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `token ${token}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(bodyData)
+      });
+
+      if (!putRes.ok) {
+        const errJson = await putRes.json().catch(() => ({}));
+        throw new Error(errJson.message || `HTTP ${putRes.status}`);
+      }
+    }
 
     function updateAreaBadges() {
       let kansaiCount = 0;
       let kantoCount = 0;
       allJobs.forEach(j => {
-        if (KANSAI_PREFS.some(p => j.pref.includes(p))) kansaiCount++;
+        if (KANSAI_PREFS.some(p => j.pref && j.pref.includes(p))) kansaiCount++;
         else kantoCount++;
       });
       document.getElementById('kansaiCountBadge').textContent = `${kansaiCount.toLocaleString()}件`;
@@ -414,7 +655,7 @@
       `;
 
       prefs.forEach(p => {
-        const count = allJobs.filter(j => j.pref.includes(p) && (currentArea === '関東' ? KANTO_PREFS.some(kp => j.pref.includes(kp)) : KANSAI_PREFS.some(kp => j.pref.includes(kp)))).length;
+        const count = allJobs.filter(j => j.pref && j.pref.includes(p) && (currentArea === '関東' ? KANTO_PREFS.some(kp => j.pref.includes(kp)) : KANSAI_PREFS.some(kp => j.pref.includes(kp)))).length;
         const isSelected = selectedPref === p;
         html += `
           <button onclick="setPrefFilter('${p}')" class="pref-pill px-3 py-1 rounded-full border transition ${isSelected ? 'bg-blue-600 text-white border-blue-600 font-bold' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}">
@@ -758,79 +999,6 @@
       document.getElementById('toastMsg').textContent = msg;
       toast.classList.remove('opacity-0', 'pointer-events-none');
       setTimeout(() => toast.classList.add('opacity-0', 'pointer-events-none'), 2500);
-    }
-
-    function handleFileSelect(evt) {
-      const file = evt.target.files[0];
-      if (!file) return;
-
-      const progressDiv = document.getElementById('uploadProgress');
-      const progressBar = document.getElementById('progressBar');
-      const progressPercent = document.getElementById('progressPercent');
-      progressDiv.classList.remove('hidden');
-
-      const parsedJobs = [];
-      const totalBytes = file.size;
-
-      Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        chunkSize: 1024 * 1024 * 2,
-        chunk: (results, parser) => {
-          results.data.forEach((row, i) => {
-            const facility = row['施設名'] || row['施設'] || row['事業所名'] || '';
-            if (!facility) return;
-
-            const pref = row['都道府県'] || '';
-            const city = row['市区町村'] || '';
-            const address = row['町域・番地・建物名'] || row['住所'] || '';
-            const jobType = row['職種'] || '介護';
-            const facilityType = row['サービス種別'] || row['施設形態'] || '一般';
-            const shiftsRaw = row['シフト'] || '日勤';
-            const shifts = shiftsRaw.split(/[,、・\/\s]+/).filter(Boolean);
-            const notes = row['備考'] || '';
-            const date = row['更新日時'] || row['獲得日時'] || '2026/11/12';
-
-            parsedJobs.push({
-              id: `csv_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 4)}`,
-              facility, pref, city, address, jobType, facilityType, shifts, notes, date
-            });
-          });
-
-          const currentBytes = results.meta.cursor || 0;
-          const pct = Math.min(100, Math.round((currentBytes / totalBytes) * 100));
-          progressBar.style.width = `${pct}%`;
-          progressPercent.textContent = `${pct}%`;
-        },
-        complete: async () => {
-          progressBar.style.width = '100%';
-          progressPercent.textContent = '100%';
-          showToast(`${parsedJobs.length.toLocaleString()}件を取り込み中...`);
-
-          const facilityMap = new Map();
-          parsedJobs.forEach(j => {
-            const key = `${j.facility}_${j.jobType}`;
-            if (!facilityMap.has(key)) facilityMap.set(key, j);
-          });
-          const merged = Array.from(facilityMap.values());
-
-          allJobs = merged;
-          await saveJobsToDB(merged);
-
-          setTimeout(() => {
-            progressDiv.classList.add('hidden');
-            closeCsvModal();
-            updateAreaBadges();
-            renderPrefPills();
-            applyFilters();
-            showToast('手動取り込みが完了しました！');
-          }, 600);
-        },
-        error: (err) => {
-          alert('CSV読み込み中にエラーが発生しました: ' + err.message);
-          progressDiv.classList.add('hidden');
-        }
-      });
     }
   </script>
 </body>
