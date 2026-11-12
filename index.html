@@ -410,6 +410,7 @@
     let allJobs = [];
     let filteredJobs = [];
     let selectedJobIds = new Set();
+    let expandedNoteIds = new Set();
     let baseCoords = null;
     let currentRegion = "all";
     let currentJobType = "all";
@@ -433,13 +434,17 @@
       jobs.forEach((job) => {
         const normFacility = normalizeKeyStr(job.facility);
         const normAddr = normalizeKeyStr(formatFullAddress(job));
-        const key = `${normFacility}__${normAddr}`;
+        const normJobType = String(job.jobType || "介護").trim();
+        const normEmpType = String(job.empType || "派遣").trim();
+        // 施設名 + 住所 + 職種(介護/看護) + 雇用形態(派遣/紹介予定派遣/紹介) ごとに統合（1施設最大6パターン）
+        const key = `${normFacility}__${normAddr}__${normJobType}__${normEmpType}`;
 
         if (!map.has(key)) {
           map.set(key, {
             ...job,
-            jobTypes: job.jobType ? [job.jobType] : [],
-            empTypes: job.empType ? [job.empType] : [],
+            jobType: normJobType,
+            empType: normEmpType,
+            empTypes: [normEmpType],
             shifts: Array.isArray(job.shifts) ? [...job.shifts] : [],
             notesList: job.notes && job.notes.trim() ? [job.notes.trim()] : []
           });
@@ -459,19 +464,9 @@
             existing.matchedTown = job.matchedTown;
           }
 
-          // 施設形態が「一般」「施設」など汎用的なら具体的な方を採用
+          // 施設形態が「一般」なら具体的な方を採用
           if ((!existing.facilityType || existing.facilityType === "一般") && job.facilityType && job.facilityType !== "一般") {
             existing.facilityType = job.facilityType;
-          }
-
-          // 職種マージ
-          if (job.jobType && !existing.jobTypes.includes(job.jobType)) {
-            existing.jobTypes.push(job.jobType);
-          }
-
-          // 雇用形態マージ
-          if (job.empType && !existing.empTypes.includes(job.empType)) {
-            existing.empTypes.push(job.empType);
           }
 
           // シフトマージ
@@ -489,14 +484,10 @@
 
       return Array.from(map.values()).map((item, idx) => {
         const mergedNotes = item.notesList.join("\n---\n");
-        const primaryJobType = item.jobTypes.join("・") || item.jobType || "介護";
-        const primaryEmpType = item.empTypes[0] || item.empType || "派遣";
         const { notesList, ...rest } = item;
         return {
           ...rest,
           id: `job_${idx}`,
-          jobType: primaryJobType,
-          empType: primaryEmpType,
           notes: mergedNotes
         };
       });
@@ -975,10 +966,18 @@
                   <i class="fa-solid fa-location-dot text-gray-400"></i>
                   <span>${escapeHtml(formatFullAddress(job))}</span>
                 </div>
-                <div class="flex flex-wrap items-center gap-1 mb-2">
-                  ${shiftBadges}
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <div class="flex flex-wrap items-center gap-1">
+                    ${shiftBadges}
+                  </div>
+                  ${job.notes ? `
+                    <button type="button" onclick="event.stopPropagation(); toggleNoteDetail('${job.id}')" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${expandedNoteIds.has(job.id) ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'}">
+                      <i class="fa-solid ${expandedNoteIds.has(job.id) ? 'fa-chevron-up' : 'fa-chevron-down'} text-[10px]"></i>
+                      <span>${expandedNoteIds.has(job.id) ? '詳細を閉じる' : '詳細を見る'}</span>
+                    </button>
+                  ` : ""}
                 </div>
-                ${job.notes ? `<div class="mt-2 p-2.5 bg-gray-50 rounded-xl text-xs text-gray-700 whitespace-pre-wrap leading-relaxed border border-gray-100">${escapeHtml(job.notes)}</div>` : ""}
+                ${job.notes && expandedNoteIds.has(job.id) ? `<div onclick="event.stopPropagation()" class="mt-2.5 p-3 bg-gray-50 rounded-xl text-xs text-gray-700 whitespace-pre-wrap leading-relaxed border border-gray-200/80 cursor-text">${escapeHtml(job.notes)}</div>` : ""}
               </div>
             </div>
           </div>
@@ -1005,6 +1004,12 @@
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
+    }
+
+    function toggleNoteDetail(id) {
+      if (expandedNoteIds.has(id)) expandedNoteIds.delete(id);
+      else expandedNoteIds.add(id);
+      renderJobList();
     }
 
     function toggleJobSelection(id) {
