@@ -1,1980 +1,1808 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>案件検索</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ビースタイル 追客・掘り起こし管理</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="./data.js" onerror="window.BSTYLE_DATA_MISSING=true"></script>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif; }
-    .slider-thumb::-webkit-slider-thumb {
-      appearance: none;
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      background: #1864d0;
-      cursor: pointer;
-      border: 3px solid #ffffff;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
-    }
-    .slider-thumb::-moz-range-thumb {
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      background: #1864d0;
-      cursor: pointer;
-      border: 3px solid #ffffff;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
-    }
-    .touch-range { touch-action: pan-y; }
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap');
+    body { font-family: 'Noto Sans JP', sans-serif; background-color: #f3f4f6; color: #111827; }
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    .tab-active { border-bottom: 3px solid #f97316; color: #ffffff; font-weight: 700; }
+    .tab-inactive { border-bottom: 3px solid transparent; color: #9ca3af; }
+    .tab-inactive:hover { color: #e5e7eb; }
+    .modal-backdrop { background-color: rgba(17, 24, 39, 0.72); backdrop-filter: blur(2px); }
   </style>
 </head>
-<body class="bg-[#f2f4f7] text-[#101824] antialiased pb-24">
+<body class="min-h-screen flex flex-col">
 
-  <!-- CSV取り込み・自動GitHub更新モーダル -->
-  <div id="csvModal" class="fixed inset-0 bg-black/60 z-50 items-center justify-center p-4" style="display: none;">
-    <div class="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl max-h-[92vh] overflow-y-auto">
-      <div class="flex items-center justify-between pb-3 border-b">
-        <h3 class="text-lg font-bold text-gray-900 flex items-center gap-2">
-          <i class="fa-solid fa-bolt text-amber-500"></i> CSV自動更新・データ取り込み
-        </h3>
-        <button type="button" onclick="closeCsvModal()" class="text-gray-400 hover:text-gray-600 p-1">
-          <i class="fa-solid fa-xmark text-lg"></i>
-        </button>
+  <header class="bg-zinc-950 text-white sticky top-0 z-30 shadow-md border-b border-zinc-800">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 pt-3 pb-2 flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-lg bg-orange-500 text-zinc-950 font-black flex items-center justify-center text-lg shadow">B</div>
+        <div class="flex items-center gap-2">
+          <h1 class="font-bold text-base sm:text-lg tracking-tight">ビースタイル 追客・掘り起こし管理</h1>
+          <span id="dataSourceBadge" class="text-[11px] px-2 py-0.5 rounded-full bg-zinc-800 text-orange-400 border border-zinc-700 font-medium">読込中...</span>
+        </div>
       </div>
 
-      <div class="mt-4 p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-xs text-blue-900 leading-relaxed">
-        <div class="font-bold flex items-center justify-between mb-1">
-          <span>📌 参照元</span>
-          <a href="https://metabase.arrove.jp/dashboard/793" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-[#1864d0] hover:underline font-semibold bg-white px-2 py-0.5 rounded shadow-sm">
-            <span>Metabaseを開く</span> <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+      <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 text-xs">
+        <a href="https://refo.link/haken-oubo/applications" target="_blank" rel="noopener noreferrer"
+           class="px-2.5 py-1.5 rounded-md bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 font-medium transition flex items-center gap-1">
+          <span>Refo応募一覧</span><span class="text-orange-400">↗</span>
+        </a>
+        <a href="https://kawazoedaichi.github.io/searchOrder/" target="_blank" rel="noopener noreferrer"
+           class="px-2.5 py-1.5 rounded-md bg-zinc-900 hover:bg-zinc-800 text-orange-400 border border-orange-500/40 font-bold transition flex items-center gap-1">
+          <span>案件詳細</span><span>↗</span>
+        </a>
+        <button type="button" onclick="openModal('githubModal')"
+           class="px-2.5 py-1.5 rounded-md bg-zinc-900 hover:bg-zinc-800 text-emerald-400 border border-emerald-500/40 font-bold transition flex items-center gap-1">
+          <span>🚀 GitHub自動反映</span>
+        </button>
+        <button type="button" onclick="openModal('exportModal')"
+           class="px-2.5 py-1.5 rounded-md bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-600 font-bold transition">
+          CSV出力
+        </button>
+        <button type="button" onclick="openModal('urlModal')"
+           class="px-2.5 py-1.5 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-600 font-medium transition">
+          URL・案件設定
+        </button>
+        <button type="button" onclick="openModal('csvModal')"
+           class="px-3 py-1.5 rounded-md bg-orange-500 hover:bg-orange-600 text-zinc-950 font-black transition shadow-sm">
+          CSV読込
+        </button>
+      </div>
+    </div>
+
+    <!-- 5タブナビゲーション（3日以内未FIX → 未FIX人材 → 激熱掘起 → 未来人材 → 通常掘起） -->
+    <nav class="max-w-7xl mx-auto px-2 sm:px-6 flex overflow-x-auto scrollbar-hide gap-1 sm:gap-4 text-xs sm:text-sm pt-1">
+      <button type="button" onclick="switchTab('within3days')" id="tab-within3days" class="tab-active py-2.5 px-2.5 whitespace-nowrap flex items-center gap-1.5 transition">
+        <span>3日以内 未FIX人材</span>
+        <span id="badge-within3days" class="px-1.5 py-0.5 text-[11px] rounded-full bg-orange-500 text-zinc-950 font-black">0</span>
+      </button>
+      <button type="button" onclick="switchTab('unfixed')" id="tab-unfixed" class="tab-inactive py-2.5 px-2.5 whitespace-nowrap flex items-center gap-1.5 transition">
+        <span>未FIX人材</span>
+        <span id="badge-unfixed" class="px-1.5 py-0.5 text-[11px] rounded-full bg-zinc-800 text-zinc-300 font-bold">0</span>
+      </button>
+      <button type="button" onclick="switchTab('hot')" id="tab-hot" class="tab-inactive py-2.5 px-2.5 whitespace-nowrap flex items-center gap-1.5 transition">
+        <span>激熱掘起</span>
+        <span id="badge-hot" class="px-1.5 py-0.5 text-[11px] rounded-full bg-zinc-800 text-zinc-300 font-bold">0</span>
+      </button>
+      <button type="button" onclick="switchTab('future')" id="tab-future" class="tab-inactive py-2.5 px-2.5 whitespace-nowrap flex items-center gap-1.5 transition">
+        <span>未来人材</span>
+        <span id="badge-future" class="px-1.5 py-0.5 text-[11px] rounded-full bg-zinc-800 text-zinc-300 font-bold">0</span>
+      </button>
+      <button type="button" onclick="switchTab('normal')" id="tab-normal" class="tab-inactive py-2.5 px-2.5 whitespace-nowrap flex items-center gap-1.5 transition">
+        <span>通常掘起</span>
+        <span id="badge-normal" class="px-1.5 py-0.5 text-[11px] rounded-full bg-zinc-800 text-zinc-300 font-bold">0</span>
+      </button>
+    </nav>
+  </header>
+
+  <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 space-y-3">
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <button type="button" onclick="toggleGuide()" class="w-full px-4 py-2.5 flex items-center justify-between text-left text-xs sm:text-sm font-bold text-gray-800 hover:bg-gray-50 transition">
+        <span id="guideTitle" class="text-orange-600">【3日以内 未FIX人材】の抽出基準・アプローチ設計を見る</span>
+        <span id="guideArrow" class="text-gray-400 text-xs">開く ▼</span>
+      </button>
+      <div id="guideBody" class="hidden px-4 pb-3 pt-1 border-t border-gray-100 text-xs text-gray-600 space-y-1.5 bg-orange-50/40">
+        <p id="guideDesc"></p>
+        <p class="text-[11px] text-gray-500">※ CSVのB列（最終ステータス）を参照し、「3日以内 未FIX人材」「未FIX人材」はB列＝「FIX待ち」のみ抽出します。また、同一CSV内で「稼働中・就業中・職見待ち・内定待ち・決定」と電話番号が一致する場合は自動除外されます。</p>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-200 p-3 shadow-sm space-y-2.5">
+      <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-gray-100">
+        <div class="inline-flex rounded-lg bg-zinc-100 p-1 border border-zinc-200">
+          <button type="button" onclick="switchArea('kanto')" id="area-kanto" class="px-3.5 py-1 rounded-md text-xs font-black bg-zinc-900 text-orange-400 shadow-sm transition">
+            関東（東京東・本社・埼玉・神奈川）
+          </button>
+          <button type="button" onclick="switchArea('all')" id="area-all" class="px-3.5 py-1 rounded-md text-xs font-bold text-gray-600 hover:text-gray-900 transition">
+            全エリア（関西・名古屋含む）
+          </button>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2 text-xs">
+          <button type="button" onclick="openModal('excludedModal')" class="px-2.5 py-1 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold transition flex items-center gap-1">
+            <span>除外済リスト</span>
+            <span id="excludedCountBadge" class="px-1.5 py-0.2 bg-rose-600 text-white rounded-full text-[10px]">0</span>
+          </button>
+          <button type="button" onclick="openModal('mergeInfoModal')" class="px-2.5 py-1 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium transition">
+            名寄せ・履歴内訳
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
+        <select id="filterPref" onchange="renderList()" class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs bg-white focus:outline-none focus:border-orange-500">
+          <option value="">都道府県：すべて</option>
+        </select>
+        <select id="filterStaff" onchange="renderList()" class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs bg-white focus:outline-none focus:border-orange-500">
+          <option value="">アテンド担当ユーザー：すべて</option>
+        </select>
+        <select id="filterBranch" onchange="renderList()" class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs bg-white focus:outline-none focus:border-orange-500">
+          <option value="">担当支店：すべて</option>
+        </select>
+        <label class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-orange-200 bg-orange-50/70 text-xs font-bold text-gray-800 cursor-pointer select-none">
+          <input type="checkbox" id="filterUnactedOnly" checked onchange="renderList()" class="accent-orange-500 w-4 h-4 rounded" />
+          <span>未対応のみ表示</span>
+        </label>
+      </div>
+
+      <div class="flex flex-col sm:flex-row gap-2">
+        <input type="text" id="searchInput" oninput="renderList()" placeholder="氏名・フリガナ・電話番号・ID・エリア・資格で検索..."
+               class="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-xs focus:outline-none focus:border-orange-500" />
+        <button type="button" onclick="quickExportCurrent()" class="px-4 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-orange-400 border border-zinc-700 text-xs font-bold whitespace-nowrap transition shadow-sm">
+          表示中を即CSV出力
+        </button>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-gray-600">
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="font-bold text-gray-900" id="resultCountText">該当: 0件</span>
+        <span class="text-gray-400">|</span>
+        <span id="jobMasterSummary">案件マスタ：派遣BO(5km) 0件 ／ 紹介(2km) 0件</span>
+        <span id="autoExcludedSummary" class="text-rose-600 font-medium"></span>
+      </div>
+      <div class="text-[11px] text-gray-500">
+        ※ 送信履歴・翌日リマインド・30日クールダウンはCSV再読込でも消えない独立ストレージに保存されます
+      </div>
+    </div>
+
+    <div id="candidateList" class="space-y-3 pb-10"></div>
+  </main>
+
+  <div id="msgModal" class="hidden fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-3">
+    <div class="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-gray-200 overflow-hidden flex flex-col max-h-[92vh]">
+      <div class="bg-zinc-950 text-white px-5 py-3.5 flex items-center justify-between">
+        <div>
+          <span id="modalTabBadge" class="text-[11px] px-2 py-0.5 rounded bg-orange-500 text-zinc-950 font-black mr-2">追客</span>
+          <span id="modalCandidateName" class="font-bold text-base">氏名</span>
+        </div>
+        <button type="button" onclick="closeModal('msgModal')" class="text-gray-400 hover:text-white text-xl font-bold px-2">×</button>
+      </div>
+      <div class="p-4 sm:p-5 overflow-y-auto space-y-3 text-xs">
+        <div id="shuffleReasonBox" class="hidden bg-orange-50 border border-orange-200 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <span class="font-bold text-orange-800">自動差し込み理由：</span>
+            <span id="currentReasonText" class="font-bold text-gray-900"></span>
+          </div>
+          <button type="button" onclick="shuffleReason()" class="px-3 py-1 rounded-lg bg-orange-500 hover:bg-orange-600 text-zinc-950 font-black transition shadow-sm">
+            🔄 理由を再抽選
+          </button>
+        </div>
+        <div id="remindNoticeBox" class="hidden bg-amber-50 border border-amber-300 rounded-xl p-3 text-amber-900 font-bold">
+          🔔 激熱掘起：初回送信の翌日リマインド対象です。送信すると30日間（1ヶ月）自動で非表示（クールダウン）になります。
+        </div>
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="font-bold text-gray-700">送信メッセージ文面（編集可能）</label>
+            <span id="modalSalutationInfo" class="text-[11px] text-orange-600 font-bold"></span>
+          </div>
+          <textarea id="modalMessageText" rows="11" class="w-full rounded-xl border border-gray-300 p-3 text-xs sm:text-sm leading-relaxed focus:outline-none focus:border-orange-500 font-sans"></textarea>
+        </div>
+      </div>
+      <div class="bg-gray-50 px-5 py-3.5 border-t border-gray-200 flex flex-wrap items-center justify-end gap-2">
+        <button type="button" onclick="closeModal('msgModal')" class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 text-xs font-bold hover:bg-gray-100">閉じる</button>
+        <button type="button" onclick="copyMessageOnly()" class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold">文面だけコピー</button>
+        <button type="button" onclick="copyAndRecordAction()" class="px-5 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-zinc-950 text-xs font-black shadow">📋 コピーして送信記録をつける（完了）</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="csvModal" class="hidden fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-3">
+    <div class="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-gray-200 overflow-hidden">
+      <div class="bg-zinc-950 text-white px-5 py-3.5 flex items-center justify-between">
+        <h2 class="font-bold text-base">CSV読込・外部データ（data.js）書き出し</h2>
+        <button type="button" onclick="closeModal('csvModal')" class="text-gray-400 hover:text-white text-xl font-bold px-2">×</button>
+      </div>
+      <div class="p-5 space-y-4 text-xs">
+        <div class="bg-orange-50 border border-orange-200 rounded-xl p-3 flex items-center justify-between gap-2">
+          <div>
+            <p class="font-bold text-gray-900">1. Refoから全列CSVをダウンロード</p>
+            <p class="text-[11px] text-gray-600">B列（2列目）を「最終ステータス」として自動参照します</p>
+          </div>
+          <a href="https://refo.link/haken-oubo/applications" target="_blank" rel="noopener noreferrer"
+             class="px-3 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-orange-400 font-bold whitespace-nowrap shadow-sm">
+            📥 Refo応募一覧を開く ↗
           </a>
         </div>
-        <p class="text-gray-700">メタベース ＞ キカリ共通 ＞ バックオーダー</p>
-        <p class="text-[11px] text-gray-500 mt-1">※UTF-8 / Shift-JIS 両対応。落としたCSVをドロップすると、<strong>高精度町丁目座標辞書（coords_dict.json）</strong>と自動照合して座標を付与し、GitHubへ全自動同期します。</p>
-        <div id="dictCoveragePanel" class="mt-2 pt-2 border-t border-blue-200/80 text-[11px]"></div>
+        <div id="dropZone" onclick="document.getElementById('csvFileInput').click()"
+             class="border-2 border-dashed border-gray-300 hover:border-orange-500 rounded-2xl p-7 text-center cursor-pointer transition bg-gray-50 hover:bg-orange-50/30">
+          <p class="font-black text-sm text-gray-800 mb-1">2. クリックして全列CSVファイルを選択</p>
+          <p class="text-gray-500">またはここにCSVファイルをドラッグ＆ドロップ（UTF-8 / Shift-JIS自動判定）</p>
+          <input type="file" id="csvFileInput" accept=".csv" class="hidden" onchange="handleCsvFileSelect(event)" />
+        </div>
+        <div class="bg-zinc-900 text-white rounded-xl p-3.5 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-orange-400">📦 チーム配布・軽量化用 data.js 書き出し</span>
+            <span class="text-[10px] text-zinc-400">軽量圧縮＋最新案件マスタ同梱</span>
+          </div>
+          <p class="text-[11px] text-zinc-300">読み込んだ全列CSVを軽量圧縮した別ファイル（<code class="text-orange-300">data.js</code>）として保存します。</p>
+          <button type="button" onclick="exportDataJsFile()" class="w-full py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-zinc-950 font-black transition">
+            📦 読込済CSV(全列)から最新 data.js を書き出し
+          </button>
+        </div>
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-100">
+          <button type="button" onclick="resetToDemoData()" class="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 font-medium">デモデータに戻す</button>
+          <button type="button" onclick="clearActionHistory()" class="px-3 py-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 font-medium">送信・クールダウン履歴をリセット</button>
+        </div>
       </div>
+    </div>
+  </div>
 
-      <!-- 初回トークン設定アコーディオン -->
-      <div class="mt-3 border border-gray-200 rounded-xl overflow-hidden bg-gray-50">
-        <button type="button" onclick="toggleGithubSettings()" class="w-full px-4 py-2.5 text-left text-xs font-bold text-gray-700 flex items-center justify-between hover:bg-gray-100 transition">
-          <span class="flex items-center gap-2"><i class="fa-brands fa-github text-sm"></i> GitHub自動更新設定（初回のみ）</span>
-          <span id="tokenStatusText" class="text-[11px] font-normal text-amber-600">未設定 ▽</span>
-        </button>
-        <div id="githubSettingsPanel" class="p-4 bg-white border-t border-gray-200 space-y-3 hidden text-xs">
+  <div id="exportModal" class="hidden fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-3">
+    <div class="bg-white rounded-2xl max-w-3xl w-full shadow-2xl border border-gray-200 overflow-hidden flex flex-col max-h-[92vh]">
+      <div class="bg-zinc-950 text-white px-5 py-3.5 flex items-center justify-between">
+        <h2 class="font-bold text-base">Excel対応 CSVエクスポート（BOM付きUTF-8）</h2>
+        <button type="button" onclick="closeModal('exportModal')" class="text-gray-400 hover:text-white text-xl font-bold px-2">×</button>
+      </div>
+      <div class="p-5 overflow-y-auto space-y-4 text-xs">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <label class="border rounded-xl p-3 cursor-pointer hover:border-orange-500 flex items-start gap-2 bg-orange-50/40 border-orange-300">
+            <input type="radio" name="exportScope" value="current" checked onchange="updateExportPreview()" class="mt-0.5 accent-orange-500" />
+            <div><p class="font-bold text-gray-900">① 現在の表示条件</p><p class="text-[11px] text-gray-500">選択中エリア・タブ・検索条件通り</p></div>
+          </label>
+          <label class="border border-gray-200 rounded-xl p-3 cursor-pointer hover:border-orange-500 flex items-start gap-2">
+            <input type="radio" name="exportScope" value="tabAll" onchange="updateExportPreview()" class="mt-0.5 accent-orange-500" />
+            <div><p class="font-bold text-gray-900">② 現在のタブ全件</p><p class="text-[11px] text-gray-500">選択中エリアの現タブ全件</p></div>
+          </label>
+          <label class="border border-gray-200 rounded-xl p-3 cursor-pointer hover:border-orange-500 flex items-start gap-2">
+            <input type="radio" name="exportScope" value="allTabs" onchange="updateExportPreview()" class="mt-0.5 accent-orange-500" />
+            <div><p class="font-bold text-gray-900">③ 全5タブ一括出力</p><p class="text-[11px] text-gray-500">全追客対象をまとめて1ファイル化</p></div>
+          </label>
+        </div>
+        <div class="flex flex-wrap items-center gap-4 bg-gray-50 p-3 rounded-xl border border-gray-200">
+          <label class="flex items-center gap-2 font-bold text-gray-800 cursor-pointer">
+            <input type="checkbox" id="exportUnactedOnly" checked onchange="updateExportPreview()" class="accent-orange-500 w-4 h-4" />
+            <span>未対応のみ出力する</span>
+          </label>
+          <label class="flex items-center gap-2 font-bold text-gray-800 cursor-pointer">
+            <input type="checkbox" id="exportIncludeRaw" onchange="updateExportPreview()" class="accent-orange-500 w-4 h-4" />
+            <span>元CSVの全列を後ろに連結して出力</span>
+          </label>
+        </div>
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="font-bold text-gray-800">出力プレビュー（先頭3件）</span>
+            <span id="exportTargetCountBadge" class="font-black text-orange-600">対象: 0件</span>
+          </div>
+          <div class="overflow-x-auto border border-gray-200 rounded-xl">
+            <table class="min-w-full text-[11px] text-left">
+              <thead class="bg-zinc-900 text-white">
+                <tr>
+                  <th class="px-2.5 py-2">追客区分</th>
+                  <th class="px-2.5 py-2">対応状況</th>
+                  <th class="px-2.5 py-2">氏名</th>
+                  <th class="px-2.5 py-2">宛名</th>
+                  <th class="px-2.5 py-2">電話番号</th>
+                  <th class="px-2.5 py-2">担当支店</th>
+                  <th class="px-2.5 py-2">候補BO(住所入)</th>
+                </tr>
+              </thead>
+              <tbody id="exportPreviewBody" class="divide-y divide-gray-200 bg-white"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="bg-zinc-100 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2">
+          <span class="text-[11px] text-gray-600 font-medium">別端末へ履歴を引き継ぐ場合：</span>
+          <div class="flex gap-2">
+            <button type="button" onclick="exportHistoryJson()" class="px-3 py-1.5 rounded-lg bg-white border border-gray-300 hover:bg-gray-50 font-bold text-gray-800">履歴JSON保存</button>
+            <button type="button" onclick="document.getElementById('historyJsonInput').click()" class="px-3 py-1.5 rounded-lg bg-white border border-gray-300 hover:bg-gray-50 font-bold text-gray-800">履歴JSON復元</button>
+            <input type="file" id="historyJsonInput" accept=".json" class="hidden" onchange="importHistoryJson(event)" />
+          </div>
+        </div>
+      </div>
+      <div class="bg-gray-50 px-5 py-3.5 border-t border-gray-200 flex items-center justify-end gap-2">
+        <button type="button" onclick="closeModal('exportModal')" class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 text-xs font-bold">閉じる</button>
+        <button type="button" onclick="executeCsvExport()" class="px-5 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-zinc-950 text-xs font-black shadow">📥 CSVをダウンロードする</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="urlModal" class="hidden fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-3">
+    <div class="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-gray-200 overflow-hidden">
+      <div class="bg-zinc-950 text-white px-5 py-3.5 flex items-center justify-between">
+        <h2 class="font-bold text-base">外部データURL・案件マスタ（searchOrder）連携設定</h2>
+        <button type="button" onclick="closeModal('urlModal')" class="text-gray-400 hover:text-white text-xl font-bold px-2">×</button>
+      </div>
+      <div class="p-5 space-y-4 text-xs">
+        <div>
+          <label class="block font-bold text-gray-800 mb-1">① 外部求職者データURL（別サイトの data.js / JSON）</label>
+          <div class="flex gap-2">
+            <input type="text" id="externalDataUrlInput" placeholder="https://kawazoedaichi.github.io/staff-data/data.js" class="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-xs" />
+            <button type="button" onclick="saveAndLoadExternalDataUrl()" class="px-3.5 py-2 rounded-lg bg-zinc-900 text-orange-400 font-bold">読込・保存</button>
+          </div>
+        </div>
+        <div class="border-t border-gray-200 pt-3 space-y-2">
+          <label class="block font-bold text-gray-800">② 案件マスタ（searchOrder側データ）のURLまたはCSV取込</label>
+          <div class="flex gap-2">
+            <input type="text" id="jobMasterUrlInput" placeholder="https://kawazoedaichi.github.io/searchOrder/data.js" class="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-xs" />
+            <button type="button" onclick="fetchJobMasterFromUrl()" class="px-3.5 py-2 rounded-lg bg-orange-500 text-zinc-950 font-black">URLから同期</button>
+          </div>
+          <div class="pt-1">
+            <button type="button" onclick="document.getElementById('jobCsvInput').click()" class="w-full py-2 rounded-lg border border-dashed border-gray-400 hover:border-orange-500 text-gray-700 font-bold bg-gray-50">
+              📂 または searchOrder に使った案件CSVを直接選択して住所反映
+            </button>
+            <input type="file" id="jobCsvInput" accept=".csv" class="hidden" onchange="handleJobCsvImport(event)" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="githubModal" class="hidden fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-3">
+    <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-gray-200 overflow-hidden">
+      <div class="bg-zinc-950 text-white px-5 py-3.5 flex items-center justify-between">
+        <h2 class="font-bold text-base text-emerald-400">🚀 GitHubリポジトリへ自動反映（大容量対応Push）</h2>
+        <button type="button" onclick="closeModal('githubModal')" class="text-gray-400 hover:text-white text-xl font-bold px-2">×</button>
+      </div>
+      <div class="p-5 space-y-3 text-xs">
+        <p class="text-gray-600 leading-relaxed">大容量対応の Git Data API（Base64エンコード方式）を使用し、現在読み込んでいる全列CSV・案件マスタを軽量圧縮して GitHub 上の <strong><code>data.js</code></strong> へ直接自動アップロードします。</p>
+        <div class="space-y-2 bg-gray-50 p-3.5 rounded-xl border border-gray-200">
           <div>
-            <label class="block font-bold text-gray-700 mb-1">GitHub Personal Access Token (PAT)</label>
-            <input type="password" id="ghTokenInput" placeholder="ghp_xxxxxxxxxxxx" class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-[#1864d0] focus:outline-none">
-            <p class="text-[10px] text-gray-400 mt-1">※このブラウザ内にのみ安全に保存されます。repo権限を持つトークンが必要です。</p>
+            <label class="block font-bold text-gray-700 mb-0.5">GitHub リポジトリ（オーナー/リポジトリ名）</label>
+            <input type="text" id="ghRepoInput" value="kawazoedaichi/staff" class="w-full rounded-lg border border-gray-300 px-3 py-1.5 bg-white" />
           </div>
           <div class="grid grid-cols-2 gap-2">
             <div>
-              <label class="block font-bold text-gray-700 mb-1">オーナー名 (ユーザー名)</label>
-              <input type="text" id="ghOwnerInput" value="kawazoedaichi" class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-xs">
+              <label class="block font-bold text-gray-700 mb-0.5">ブランチ名</label>
+              <input type="text" id="ghBranchInput" value="main" class="w-full rounded-lg border border-gray-300 px-3 py-1.5 bg-white" />
             </div>
             <div>
-              <label class="block font-bold text-gray-700 mb-1">リポジトリ名</label>
-              <input type="text" id="ghRepoInput" value="searchOrder" class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-xs">
+              <label class="block font-bold text-gray-700 mb-0.5">更新ファイルパス</label>
+              <input type="text" id="ghPathInput" value="data.js" class="w-full rounded-lg border border-gray-300 px-3 py-1.5 bg-white" />
             </div>
           </div>
-          <button type="button" onclick="saveGithubConfig()" class="w-full py-2 bg-[#1864d0] hover:bg-[#1453b0] text-white font-bold rounded-lg transition">設定を保存する</button>
+          <div>
+            <label class="block font-bold text-gray-700 mb-0.5">GitHub Personal Access Token（ブラウザ内にのみ保存）</label>
+            <input type="password" id="ghTokenInput" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" class="w-full rounded-lg border border-gray-300 px-3 py-1.5 bg-white" />
+          </div>
         </div>
-      </div>
-
-      <!-- 取り込みモード切替（蓄積更新 vs 過去データリセットして新規再構築） -->
-      <div class="mt-3 p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-xs space-y-2">
-        <div class="font-bold text-amber-900 flex items-center justify-between">
-          <span>⚙️ データ更新モード</span>
-          <button type="button" onclick="resetAllJobsData()" class="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-[11px] font-bold shadow-sm transition">
-            <i class="fa-solid fa-trash-can"></i> 過去データを全消去する
-          </button>
+        <div class="flex items-center justify-between pt-2">
+          <button type="button" onclick="saveGithubConfig()" class="px-3.5 py-2 rounded-lg border border-gray-300 text-gray-700 font-bold hover:bg-gray-100">設定だけ保存</button>
+          <button type="button" onclick="pushDataJsToGithub()" id="ghPushBtn" class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black shadow transition">🚀 GitHubの data.js を今すぐ自動更新する</button>
         </div>
-        <div class="flex flex-wrap gap-3 text-gray-800 font-semibold">
-          <label class="inline-flex items-center gap-1.5 cursor-pointer">
-            <input type="radio" name="importMode" value="accumulate" checked class="text-[#1864d0] focus:ring-[#1864d0]">
-            <span>既存データに蓄積マージ（通常はこちら）</span>
-          </label>
-          <label class="inline-flex items-center gap-1.5 cursor-pointer">
-            <input type="radio" name="importMode" value="overwrite" class="text-[#1864d0] focus:ring-[#1864d0]">
-            <span>過去データを消してCSVで入れ替え（クリーン再構築）</span>
-          </label>
-        </div>
-      </div>
-
-      <!-- CSVドロップゾーン -->
-      <div id="dropZone" class="mt-3 border-2 border-dashed border-blue-400 hover:border-blue-600 bg-blue-50/40 rounded-2xl p-7 text-center cursor-pointer transition" onclick="document.getElementById('fileInput').click()">
-        <input type="file" id="fileInput" accept=".csv,.json" multiple class="hidden" onchange="handleFilesDrop(this.files)">
-        <div class="text-4xl text-blue-500 mb-2"><i class="fa-solid fa-cloud-arrow-up"></i></div>
-        <p class="text-sm font-bold text-gray-800">ここにMetabaseのCSVをドロップ（またはクリックして選択）</p>
-        <p class="text-xs text-gray-500 mt-1">※国交省・街区位置参照CSVをドロップすると座標辞書に自動追加＆GitHub保存されます</p>
-      </div>
-
-      <!-- 進捗・ステータス表示 -->
-      <div id="uploadStatusBox" class="mt-4 hidden p-3 rounded-xl border text-xs">
-        <div class="flex items-center justify-between font-bold mb-1">
-          <span id="uploadStatusTitle">処理中...</span>
-          <span id="uploadStatusPct">0%</span>
-        </div>
-        <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden mb-2">
-          <div id="uploadStatusBar" class="bg-blue-600 h-2 rounded-full transition-all duration-200" style="width: 0%"></div>
-        </div>
-        <p id="uploadStatusDetail" class="text-gray-600 text-[11px] leading-relaxed"></p>
-      </div>
-
-      <div class="mt-6 flex justify-end gap-3">
-        <button type="button" onclick="closeCsvModal()" class="px-4 py-2 bg-[#f0f4f4] hover:bg-[#e4e9ec] text-[#344050] text-xs font-semibold rounded-lg transition">閉じる</button>
       </div>
     </div>
   </div>
 
-  <!-- メイン画面 -->
-  <main class="max-w-4xl mx-auto px-3 sm:px-4 pt-4 sm:pt-6">
-    <div class="flex items-center justify-between mb-4">
-      <div class="flex items-center gap-3">
-        <h1 class="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">案件検索</h1>
-        <span id="totalHeaderCount" class="text-xs sm:text-sm text-gray-500 font-semibold">読込中...</span>
-        <span id="dictStatusBadge" class="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[11px] font-bold">
-          <i class="fa-solid fa-location-crosshairs"></i> 町丁目高精度座標連携中
-        </span>
+  <div id="excludedModal" class="hidden fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-3">
+    <div class="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-gray-200 overflow-hidden flex flex-col max-h-[88vh]">
+      <div class="bg-zinc-950 text-white px-5 py-3.5 flex items-center justify-between">
+        <h2 class="font-bold text-base">除外済リスト（タイムスタンプ永続保存）</h2>
+        <button type="button" onclick="closeModal('excludedModal')" class="text-gray-400 hover:text-white text-xl font-bold px-2">×</button>
       </div>
-      <button type="button" onclick="openCsvModal()" class="px-3 py-1.5 bg-white border border-gray-300 hover:border-[#1864d0] text-gray-700 hover:text-[#1864d0] rounded-lg text-xs font-bold shadow-sm transition flex items-center gap-1.5">
-        <i class="fa-solid fa-bolt text-amber-500"></i> <span class="hidden sm:inline">CSV</span>自動更新
-      </button>
+      <div class="p-4 overflow-y-auto space-y-2 text-xs" id="excludedListContainer"></div>
+      <div class="bg-gray-50 px-5 py-3 border-t border-gray-200 flex justify-end">
+        <button type="button" onclick="closeModal('excludedModal')" class="px-4 py-1.5 rounded-lg bg-zinc-900 text-white font-bold text-xs">閉じる</button>
+      </div>
     </div>
+  </div>
 
-    <!-- 検索コントロールボックス -->
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-200/80 p-3.5 sm:p-5 space-y-3.5">
-      
-      <!-- 統合検索窓（住所か駅名入力） -->
-      <div>
-        <label class="block text-xs font-bold text-gray-600 mb-1 flex items-center gap-1">
-          <i class="fa-solid fa-location-dot text-[#1864d0]"></i> 検索基準（住所 または 駅名）
+  <div id="mergeInfoModal" class="hidden fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-3">
+    <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-gray-200 overflow-hidden">
+      <div class="bg-zinc-950 text-white px-5 py-3.5 flex items-center justify-between">
+        <h2 class="font-bold text-base">名寄せ・重複除外・独立ストレージ内訳</h2>
+        <button type="button" onclick="closeModal('mergeInfoModal')" class="text-gray-400 hover:text-white text-xl font-bold px-2">×</button>
+      </div>
+      <div id="mergeInfoBody" class="p-5 space-y-2.5 text-xs text-gray-700"></div>
+      <div class="bg-gray-50 px-5 py-3 border-t border-gray-200 flex justify-end">
+        <button type="button" onclick="closeModal('mergeInfoModal')" class="px-4 py-1.5 rounded-lg bg-zinc-900 text-white font-bold text-xs">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="rawRowModal" class="hidden fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-3">
+    <div class="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-gray-200 overflow-hidden flex flex-col max-h-[88vh]">
+      <div class="bg-zinc-950 text-white px-5 py-3.5 flex items-center justify-between">
+        <h2 id="rawRowModalTitle" class="font-bold text-base">元CSV 全列データ詳細</h2>
+        <button type="button" onclick="closeModal('rawRowModal')" class="text-gray-400 hover:text-white text-xl font-bold px-2">×</button>
+      </div>
+      <div class="px-5 py-2 bg-gray-100 border-b border-gray-200 flex items-center justify-between text-xs">
+        <label class="flex items-center gap-1.5 font-bold text-gray-700 cursor-pointer">
+          <input type="checkbox" id="rawHideEmpty" checked onchange="renderCurrentRawModal()" class="accent-orange-500" />
+          <span>値が入っている列のみ表示</span>
         </label>
-        <div class="flex items-center gap-2">
-          <div class="relative flex-1">
-            <input type="text" id="unifiedInput" placeholder="住所か駅名入力（例: 新宿駅、横浜駅、神奈川県厚木市長谷1294-21）" 
-                   class="w-full pl-3.5 pr-9 py-2.5 sm:py-3 bg-[#f8f9fa] border border-[#e4e8ec] rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#1864d0] focus:bg-white transition"
-                   onkeydown="if(event.key==='Enter') executeUnifiedSearch()">
-            <button type="button" id="clearUnifiedBtn" onclick="clearUnifiedSearch()" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 hidden">
-              <i class="fa-solid fa-circle-xmark text-sm"></i>
-            </button>
-          </div>
-          <button type="button" onclick="executeUnifiedSearch()" class="px-4 py-2.5 sm:py-3 bg-[#1864d0] hover:bg-[#1453b0] text-white rounded-xl text-xs sm:text-sm font-bold shadow-sm whitespace-nowrap transition active:scale-95 flex items-center gap-1.5">
-            <i class="fa-solid fa-magnifying-glass"></i>
-            <span>検索・距離計算</span>
-          </button>
-          <button type="button" onclick="clearUnifiedSearch()" class="px-2.5 py-2.5 text-gray-500 hover:text-gray-800 text-xs sm:text-sm font-semibold whitespace-nowrap">
-            クリア
-          </button>
-        </div>
-        <div id="baseCoordInfo" class="hidden mt-1.5 text-[11px] text-[#1864d0] bg-[#ecf4fc] px-2.5 py-1 rounded-lg flex items-center justify-between">
-          <span id="baseCoordLabel">基準地点: -</span>
-          <span class="text-blue-500">※直線距離で算出しています</span>
-        </div>
+        <span id="rawColCountText" class="text-gray-500"></span>
       </div>
-
-      <!-- 距離スライダー -->
-      <div class="pt-1 pb-1 px-1">
-        <div class="flex items-center justify-between text-xs font-bold text-gray-700 mb-2">
-          <div class="flex items-center gap-2">
-            <span>指定距離（直線）：</span>
-            <span id="distanceBadge" class="text-[#1864d0] bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full text-xs">制限なし</span>
-          </div>
-          <span id="sliderStatusText" class="text-gray-500 font-medium">全件表示中</span>
-        </div>
-
-        <div class="relative w-full">
-          <input type="range" id="distanceRange" min="1" max="51" value="51" step="1"
-                 class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider-thumb touch-range focus:outline-none"
-                 oninput="onDistanceRangeInput(this.value)">
-          <div class="relative h-5 text-[10px] sm:text-xs text-gray-400 mt-2 font-semibold select-none">
-            <span class="absolute left-0 cursor-pointer hover:text-[#1864d0]" onclick="setDistancePreset(1)">1km</span>
-            <span class="absolute -translate-x-1/2 cursor-pointer hover:text-[#1864d0]" style="left: 18%" onclick="setDistancePreset(10)">10</span>
-            <span class="absolute -translate-x-1/2 cursor-pointer hover:text-[#1864d0]" style="left: 38%" onclick="setDistancePreset(20)">20</span>
-            <span class="absolute -translate-x-1/2 cursor-pointer hover:text-[#1864d0]" style="left: 58%" onclick="setDistancePreset(30)">30</span>
-            <span class="absolute -translate-x-1/2 cursor-pointer hover:text-[#1864d0]" style="left: 78%" onclick="setDistancePreset(40)">40</span>
-            <span class="absolute right-0 cursor-pointer hover:text-[#1864d0]" onclick="setDistancePreset(51)">制限なし</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- BO取得日時 期間選択・ソート -->
-      <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-100">
-        <div class="flex items-center gap-1.5 text-xs text-gray-700">
-          <span class="font-bold text-gray-600 flex items-center gap-1">
-            <i class="fa-regular fa-calendar-days text-blue-500"></i> BO取得日時：
-          </span>
-          <input type="date" id="dateStart" class="bg-[#f8f9fa] border border-[#e4e8ec] rounded-lg px-2 py-1.5 focus:outline-none text-xs" onchange="applyFilters()">
-          <span>〜</span>
-          <input type="date" id="dateEnd" class="bg-[#f8f9fa] border border-[#e4e8ec] rounded-lg px-2 py-1.5 focus:outline-none text-xs" onchange="applyFilters()">
-          <button type="button" onclick="resetFilters()" class="ml-2 text-xs text-gray-400 hover:text-gray-700 underline">リセット</button>
-        </div>
-
-        <select id="sortSelect" onchange="applyFilters()" class="bg-[#f8f9fa] border border-[#e4e8ec] rounded-lg px-2.5 py-1.5 text-xs font-bold text-gray-700 focus:outline-none cursor-pointer">
-          <option value="newest" selected>▼ BO取得日時が新しい順</option>
-          <option value="distance">↑↓ 距離順</option>
-        </select>
-      </div>
-
-      <!-- 関東 / 関西 振り分け & 職種ピルタブ -->
-      <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
-        <div class="flex items-center gap-1 bg-gray-100 p-0.5 rounded-xl text-xs font-bold mr-1">
-          <button type="button" onclick="setRegionFilter('all')" id="btnRegionAll" class="px-3 py-1 rounded-lg transition bg-white text-[#1864d0] shadow-sm">すべて</button>
-          <button type="button" onclick="setRegionFilter('関東')" id="btnRegionKanto" class="px-3 py-1 rounded-lg transition text-gray-600 hover:text-gray-900">関東</button>
-          <button type="button" onclick="setRegionFilter('関西')" id="btnRegionKansai" class="px-3 py-1 rounded-lg transition text-gray-600 hover:text-gray-900">関西</button>
-        </div>
-
-        <div class="flex items-center gap-1">
-          <button type="button" onclick="setJobFilter('all')" id="btnJobAll" class="px-3 py-1.5 rounded-full text-xs font-bold transition bg-[#1864d0] text-white shadow-sm">
-            全職種 <span id="countPillAll" class="ml-1 opacity-90 text-[11px]">0</span>
-          </button>
-          <button type="button" onclick="setJobFilter('介護')" id="btnJobKaigo" class="px-3 py-1.5 rounded-full text-xs font-bold transition bg-[#f0f4f4] hover:bg-[#e4e9ec] text-[#344050]">
-            介護 <span id="countPillKaigo" class="ml-1 text-[11px] text-gray-500">0</span>
-          </button>
-          <button type="button" onclick="setJobFilter('看護')" id="btnJobKango" class="px-3 py-1.5 rounded-full text-xs font-bold transition bg-[#f0f4f4] hover:bg-[#e4e9ec] text-[#344050]">
-            看護 <span id="countPillKango" class="ml-1 text-[11px] text-gray-500">0</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- 都道府県ピルタブ -->
-      <div id="prefPillContainer" class="flex flex-wrap gap-1.5 text-xs"></div>
-
-      <!-- 雇用形態チップ（デフォルト：派遣・紹介予定派遣 ON、紹介 OFF） -->
-      <div class="flex flex-wrap items-center gap-1.5 pt-2 border-t border-gray-100">
-        <span class="text-xs font-bold text-gray-500 mr-1">雇用形態:</span>
-        <button type="button" id="btnEmpHaken" onclick="toggleEmpChip(this, '派遣')" class="emp-chip px-3 py-1 bg-[#1864d0] text-white rounded-lg text-xs font-semibold transition">派遣</button>
-        <button type="button" id="btnEmpTtp" onclick="toggleEmpChip(this, '紹介予定派遣')" class="emp-chip px-3 py-1 bg-[#1864d0] text-white rounded-lg text-xs font-semibold transition">紹介予定派遣</button>
-        <button type="button" id="btnEmpShokai" onclick="toggleEmpChip(this, '紹介')" class="emp-chip px-3 py-1 bg-[#f0f4f4] hover:bg-[#e4e9ec] text-[#344050] rounded-lg text-xs font-semibold transition">紹介</button>
-      </div>
-
-      <!-- シフトチップ -->
-      <div class="flex flex-wrap items-center gap-1.5 pt-1">
-        <span class="text-xs font-bold text-gray-500 mr-1">シフト:</span>
-        <button type="button" onclick="toggleChip(this, 'shift', '早出')" class="chip px-3 py-1 bg-[#f0f4f4] hover:bg-[#e4e9ec] text-[#344050] rounded-lg text-xs font-semibold transition">早出</button>
-        <button type="button" onclick="toggleChip(this, 'shift', '日勤')" class="chip px-3 py-1 bg-[#f0f4f4] hover:bg-[#e4e9ec] text-[#344050] rounded-lg text-xs font-semibold transition">日勤</button>
-        <button type="button" onclick="toggleChip(this, 'shift', '遅出')" class="chip px-3 py-1 bg-[#f0f4f4] hover:bg-[#e4e9ec] text-[#344050] rounded-lg text-xs font-semibold transition">遅出</button>
-        <button type="button" onclick="toggleChip(this, 'shift', '夜勤')" class="chip px-3 py-1 bg-[#f0f4f4] hover:bg-[#e4e9ec] text-[#344050] rounded-lg text-xs font-semibold transition">夜勤</button>
-      </div>
-
-      <!-- 施設形態チップ -->
-      <div class="flex flex-wrap items-center gap-1.5 pt-1">
-        <span class="text-xs font-bold text-gray-500 mr-1">施設形態:</span>
-        <button type="button" onclick="toggleChip(this, 'type', '特養')" class="chip px-2.5 py-1 bg-[#f0f4f4] hover:bg-[#e4e9ec] text-[#344050] rounded-lg text-xs font-semibold transition">特養</button>
-        <button type="button" onclick="toggleChip(this, 'type', '老健')" class="chip px-2.5 py-1 bg-[#f0f4f4] hover:bg-[#e4e9ec] text-[#344050] rounded-lg text-xs font-semibold transition">老健</button>
-        <button type="button" onclick="toggleChip(this, 'type', '有料')" class="chip px-2.5 py-1 bg-[#f0f4f4] hover:bg-[#e4e9ec] text-[#344050] rounded-lg text-xs font-semibold transition">有料</button>
-        <button type="button" onclick="toggleChip(this, 'type', 'GH')" class="chip px-2.5 py-1 bg-[#f0f4f4] hover:bg-[#e4e9ec] text-[#344050] rounded-lg text-xs font-semibold transition">GH</button>
-        <button type="button" onclick="toggleChip(this, 'type', 'サ高住')" class="chip px-2.5 py-1 bg-[#f0f4f4] hover:bg-[#e4e9ec] text-[#344050] rounded-lg text-xs font-semibold transition">サ高住</button>
-        <button type="button" onclick="toggleChip(this, 'type', 'デイ')" class="chip px-2.5 py-1 bg-[#f0f4f4] hover:bg-[#e4e9ec] text-[#344050] rounded-lg text-xs font-semibold transition">デイ</button>
-        <button type="button" onclick="toggleChip(this, 'type', 'ショート')" class="chip px-2.5 py-1 bg-[#f0f4f4] hover:bg-[#e4e9ec] text-[#344050] rounded-lg text-xs font-semibold transition">ショート</button>
-        <button type="button" onclick="toggleChip(this, 'type', '訪問介護')" class="chip px-2.5 py-1 bg-[#f0f4f4] hover:bg-[#e4e9ec] text-[#344050] rounded-lg text-xs font-semibold transition">訪問介護</button>
-        <button type="button" onclick="toggleChip(this, 'type', '訪問看護')" class="chip px-2.5 py-1 bg-[#f0f4f4] hover:bg-[#e4e9ec] text-[#344050] rounded-lg text-xs font-semibold transition">訪問看護</button>
-        <button type="button" onclick="toggleChip(this, 'type', '病院')" class="chip px-2.5 py-1 bg-[#f0f4f4] hover:bg-[#e4e9ec] text-[#344050] rounded-lg text-xs font-semibold transition">病院</button>
-        <button type="button" onclick="toggleChip(this, 'type', '小多機')" class="chip px-2.5 py-1 bg-[#f0f4f4] hover:bg-[#e4e9ec] text-[#344050] rounded-lg text-xs font-semibold transition">小多機</button>
-      </div>
+      <div id="rawRowModalBody" class="p-4 overflow-y-auto divide-y divide-gray-100 text-xs"></div>
     </div>
-
-    <!-- 件数表示 -->
-    <div class="mt-4 mb-2 flex items-center justify-between px-1">
-      <div class="text-xs sm:text-sm font-bold text-gray-700">
-        <span id="filteredCountText">0</span>件 表示中
-      </div>
-      <div id="loadMoreInfo" class="text-[11px] text-gray-500"></div>
-    </div>
-
-    <!-- 案件カード一覧 -->
-    <div id="jobListContainer" class="space-y-3"></div>
-
-    <!-- もっと見るボタン -->
-    <div id="loadMoreWrap" class="hidden mt-4 text-center">
-      <button type="button" onclick="showMoreJobs()" class="px-6 py-2.5 bg-white border border-gray-300 hover:border-[#1864d0] text-[#1864d0] font-bold rounded-xl text-xs shadow-sm transition">
-        さらに表示する
-      </button>
-    </div>
-
-    <div id="noDataView" class="hidden py-16 text-center bg-white rounded-2xl border border-dashed border-gray-300 mt-3">
-      <div class="text-4xl mb-3 text-gray-400">🔍</div>
-      <p class="font-bold text-gray-700">該当する案件がありません</p>
-      <p class="text-xs text-gray-500 mt-1">検索条件を緩めるか、「リセット」ボタンを押してください。</p>
-    </div>
-  </main>
-
-  <!-- 固定アクションバー -->
-  <footer class="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur border-t border-gray-200 shadow-lg px-4 py-3 z-50">
-    <div class="max-w-4xl mx-auto flex items-center justify-between gap-2">
-      <div class="flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-700">
-        <button type="button" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" class="p-2 text-gray-500 hover:text-gray-800 rounded-lg hover:bg-gray-100 transition" title="トップへ戻る">
-          <i class="fa-solid fa-arrow-up"></i>
-        </button>
-        <span id="selectedCountBadge" class="bg-[#d8e8fc] text-[#1864d0] px-2 py-0.5 rounded-full text-xs font-extrabold">0件選択中</span>
-        <button type="button" onclick="deselectAll()" class="text-xs text-gray-500 hover:text-gray-800 underline ml-1">解除</button>
-        <button type="button" onclick="selectAll()" class="text-xs text-[#1864d0] hover:text-blue-800 underline">表示中を全選択</button>
-      </div>
-
-      <button type="button" onclick="copySelectedJobs()" class="px-5 py-2.5 bg-[#1864d0] hover:bg-[#1453b0] text-white rounded-xl text-xs sm:text-sm font-bold shadow-md transition active:scale-95 flex items-center gap-2">
-        <i class="fa-solid fa-copy"></i>
-        <span>まとめてコピー</span>
-      </button>
-    </div>
-  </footer>
-
-  <div id="toast" class="fixed top-5 left-1/2 -translate-x-1/2 bg-gray-900/90 text-white px-5 py-2.5 rounded-full text-xs font-bold shadow-2xl z-50 transition-all duration-300 opacity-0 pointer-events-none flex items-center gap-2">
-    <i class="fa-solid fa-check text-green-400"></i>
-    <span id="toastMsg">コピーしました</span>
   </div>
 
-  <script>
-    let TOWN_COORDS_DICT = {};
+  <div id="popupModal" class="hidden fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl border-2 border-orange-500 p-6 text-center space-y-3">
+      <div class="w-12 h-12 rounded-full bg-orange-100 text-orange-600 font-black text-2xl flex items-center justify-center mx-auto">✓</div>
+      <h3 id="popupTitle" class="font-black text-lg text-gray-900">完了しました</h3>
+      <p id="popupMessage" class="text-xs text-gray-600 leading-relaxed whitespace-pre-line"></p>
+      <div class="pt-2">
+        <button type="button" onclick="closeModal('popupModal')" class="w-full py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-orange-400 font-black text-sm shadow">OK</button>
+      </div>
+    </div>
+  </div>
 
-    const PREF_COORDS = {
-      "北海道":[43.0642,141.3469],"青森県":[40.8244,140.74],"岩手県":[39.7036,141.1527],"宮城県":[38.2688,140.8721],
-      "秋田県":[39.7186,140.1024],"山形県":[38.2404,140.3633],"福島県":[37.75,140.4678],"茨城県":[36.3418,140.4468],
-      "栃木県":[36.5657,139.8836],"群馬県":[36.3907,139.0604],"埼玉県":[35.8569,139.6489],"千葉県":[35.6051,140.1233],
-      "東京都":[35.6895,139.6917],"神奈川県":[35.4478,139.6425],"新潟県":[37.9026,139.0232],"富山県":[36.6953,137.2113],
-      "石川県":[36.5947,136.6256],"福井県":[36.0652,136.2216],"山梨県":[35.6642,138.5684],"長野県":[36.6513,138.181],
-      "岐阜県":[35.3912,136.7223],"静岡県":[34.9769,138.3831],"愛知県":[35.1802,136.9066],"三重県":[34.7303,136.5086],
-      "滋賀県":[35.0045,135.8686],"京都府":[35.0214,135.7556],"大阪府":[34.6863,135.52],"兵庫県":[34.6913,135.183],
-      "奈良県":[34.6851,135.8327],"和歌山県":[34.226,135.1675],"鳥取県":[35.5039,134.2377],"島根県":[35.4723,133.0505],
-      "岡山県":[34.6618,133.9344],"広島県":[34.3966,132.4596],"山口県":[34.1859,131.4706],"徳島県":[34.0658,134.5593],
-      "香川県":[34.3401,134.0434],"愛媛県":[33.8416,132.7657],"高知県":[33.5597,133.5311],"福岡県":[33.6064,130.4183],
-      "佐賀県":[33.2494,130.2988],"長崎県":[32.7448,129.8737],"熊本県":[32.7898,130.7417],"大分県":[33.2382,131.6126],
-      "宮崎県":[31.9111,131.4239],"鹿児島県":[31.5602,130.5581],"沖縄県":[26.2124,127.6809]
+<script>
+(function() {
+  var CR = String.fromCharCode(13);
+  var LF = String.fromCharCode(10);
+  var CRLF = CR + LF;
+  var DQ = String.fromCharCode(34);
+  var SQ = String.fromCharCode(39);
+  var AMP = String.fromCharCode(38);
+
+  var STORAGE_KEYS = {
+    ACTION_LOGS: 'bstyle_staff_action_logs_v4',
+    EXCLUDED_LIST: 'bstyle_staff_excluded_v4',
+    CANDIDATE_CACHE: 'bstyle_staff_candidates_v4',
+    JOB_MASTER_CACHE: 'bstyle_staff_jobs_v4',
+    SETTINGS: 'bstyle_staff_settings_v4'
+  };
+
+  var KANTO_BRANCHES = ['東京東', '本社', '埼玉', '神奈川'];
+  var ACTIVE_OR_PENDING_KEYWORDS = ['稼働中', '稼動中', '就業中', '職見待ち', '職場見学待ち', '職見', '内定待ち', '採用待ち', '入社待ち', '決定', '成約'];
+
+  var state = {
+    currentTab: 'within3days',
+    currentArea: 'kanto',
+    rawCandidates: [],
+    mergedCandidates: [],
+    activePhonesSet: new Set(),
+    activePersonsList: [],
+    autoExcludedCount: 0,
+    mergedDupCount: 0,
+    csvHeaders: [],
+    dispatchJobs: [],
+    directJobs: [],
+    slideReasons: [
+      '先方にて充足してしまった',
+      '他社で決定してしまった',
+      '直接雇用で埋まってしまった',
+      'エントリー選考外となってしまった'
+    ],
+    actionLogs: {},
+    excludedMap: {},
+    settings: {
+      externalDataUrl: '',
+      jobMasterUrl: '',
+      ghRepo: 'kawazoedaichi/staff',
+      ghBranch: 'main',
+      ghPath: 'data.js',
+      ghToken: ''
+    },
+    modalTarget: null,
+    currentReasonIdx: 0,
+    currentRawCandidate: null
+  };
+
+  function utf8ToBase64(str) {
+    var bytes = new TextEncoder().encode(str);
+    var bin = '';
+    var chunk = 8192;
+    for (var i = 0; i < bytes.length; i += chunk) {
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+    }
+    return btoa(bin);
+  }
+
+  function loadPersistentStorage() {
+    try { var l = localStorage.getItem(STORAGE_KEYS.ACTION_LOGS); if (l) state.actionLogs = JSON.parse(l); } catch (e) {}
+    try { var x = localStorage.getItem(STORAGE_KEYS.EXCLUDED_LIST); if (x) state.excludedMap = JSON.parse(x); } catch (e) {}
+    try { var s = localStorage.getItem(STORAGE_KEYS.SETTINGS); if (s) state.settings = Object.assign({}, state.settings, JSON.parse(s)); } catch (e) {}
+
+    var elExt = document.getElementById('externalDataUrlInput');
+    if (elExt) elExt.value = state.settings.externalDataUrl || '';
+    var elJob = document.getElementById('jobMasterUrlInput');
+    if (elJob) elJob.value = state.settings.jobMasterUrl || '';
+    var elRepo = document.getElementById('ghRepoInput');
+    if (elRepo) elRepo.value = state.settings.ghRepo || 'kawazoedaichi/staff';
+    var elBr = document.getElementById('ghBranchInput');
+    if (elBr) elBr.value = state.settings.ghBranch || 'main';
+    var elPa = document.getElementById('ghPathInput');
+    if (elPa) elPa.value = state.settings.ghPath || 'data.js';
+    var elTk = document.getElementById('ghTokenInput');
+    if (elTk) elTk.value = state.settings.ghToken || '';
+  }
+
+  function saveActionLogs() {
+    try { localStorage.setItem(STORAGE_KEYS.ACTION_LOGS, JSON.stringify(state.actionLogs)); } catch (e) {}
+  }
+
+  function saveExcludedMap() {
+    try { localStorage.setItem(STORAGE_KEYS.EXCLUDED_LIST, JSON.stringify(state.excludedMap)); } catch (e) {}
+  }
+
+  function loadInitialData() {
+    var cachedJobs = null;
+    try { cachedJobs = localStorage.getItem(STORAGE_KEYS.JOB_MASTER_CACHE); } catch (e) {}
+    if (cachedJobs) {
+      try {
+        var pj = JSON.parse(cachedJobs);
+        state.dispatchJobs = pj.dispatchJobs || [];
+        state.directJobs = pj.directJobs || [];
+      } catch (e) {}
+    } else if (window.BSTYLE_APP_DATA) {
+      state.dispatchJobs = window.BSTYLE_APP_DATA.dispatchJobs || [];
+      state.directJobs = window.BSTYLE_APP_DATA.directJobs || [];
+      if (window.BSTYLE_APP_DATA.slideReasons) state.slideReasons = window.BSTYLE_APP_DATA.slideReasons;
+    }
+
+    if (state.dispatchJobs.length === 0) {
+      state.dispatchJobs = [
+        { id: 'BO-901', name: 'ベネッセスタイルケア グランダ三軒茶屋', address: '東京都世田谷区三軒茶屋1-12-8', jobType: '介護', distKm: 0.0, boDate: '2026/11/11', wage: '時給1,750円〜', shift: '早番・日勤・遅番' },
+        { id: 'BO-902', name: 'チャームスイート世田谷三軒茶屋', address: '東京都世田谷区太子堂2-14-3', jobType: '介護', distKm: 0.2, boDate: '2026/11/12', wage: '時給1,800円〜', shift: '日勤のみ可' },
+        { id: 'BO-903', name: '駒沢介護福祉センター', address: '東京都世田谷区駒沢2-18-5', jobType: '介護', distKm: 1.6, boDate: '2026/10/01', wage: '時給1,700円〜', shift: '週3〜OK' },
+        { id: 'BO-904', name: '大宮駅西口内科・リハビリクリニック', address: '埼玉県さいたま市大宮区桜木町2-4-1', jobType: '看護', distKm: 0.4, boDate: '2026/11/12', wage: '時給2,350円〜', shift: '日勤・残業ほぼなし' },
+        { id: 'BO-906', name: '横浜みなとみらい有料老人ホーム', address: '神奈川県横浜市西区みなとみらい3-6', jobType: '介護', distKm: 0.9, boDate: '2026/11/10', wage: '時給1,780円〜', shift: '夜勤専従・日勤' },
+        { id: 'BO-907', name: '豊洲ベイサイド特別養護老人ホーム', address: '東京都江東区豊洲4-11-2', jobType: '介護', distKm: 0.5, boDate: '2026/11/11', wage: '時給1,820円〜', shift: '早番・日勤' }
+      ];
+    }
+    if (state.directJobs.length === 0) {
+      state.directJobs = [
+        { id: 'DIR-101', name: '特別養護老人ホーム 世田谷の杜（直接雇用・正社員/パート）', address: '東京都世田谷区三軒茶屋2-8-10', jobType: '介護', distKm: 0.2, boDate: '2026/11/12', wage: '月給28.5万円〜 / 時給1,650円〜' },
+        { id: 'DIR-102', name: '大宮駅前プレミアムケアホーム（直接雇用・看護）', address: '埼玉県さいたま市大宮区錦町630', jobType: '看護', distKm: 0.5, boDate: '2026/11/11', wage: '月給36万円〜 / 賞与4.0ヶ月' }
+      ];
+    }
+
+    var cachedCsv = null;
+    try { cachedCsv = localStorage.getItem(STORAGE_KEYS.CANDIDATE_CACHE); } catch (e) {}
+    if (cachedCsv) {
+      try {
+        var pc = JSON.parse(cachedCsv);
+        state.csvHeaders = pc.headers || [];
+        processCandidates(pc.candidates || [], 'CSV読込済 (全' + state.csvHeaders.length + '列)');
+        return;
+      } catch (e) {}
+    }
+
+    if (window.BSTYLE_APP_DATA && Array.isArray(window.BSTYLE_APP_DATA.demoCandidates) && window.BSTYLE_APP_DATA.demoCandidates.length > 0) {
+      state.csvHeaders = window.BSTYLE_APP_DATA.headers || Object.keys(window.BSTYLE_APP_DATA.demoCandidates[0].rawRow || {});
+      processCandidates(window.BSTYLE_APP_DATA.demoCandidates, window.BSTYLE_APP_DATA.sourceLabel || '外部 data.js 読込済');
+      return;
+    }
+
+    var fallbackSamples = [
+      { id: '01M4R001', name: '鈴木 恵美', kana: 'スズキ エミ', phone: '09011112222', dob: '1985-04-12', age: 41, address: '東京都世田谷区三軒茶屋1-22', pref: '東京都', branch: '東京東', staff: '山上 健太', qualification: '介護福祉士', jobType: '介護', status: 'アテンド済', finalStatus: 'FIX待ち', applyDate: '2026-11-10 10:00', attendDate: '2026-11-11 16:00', contactDate: '2026-11-11 16:00', startDate: '', conditions: 'シフト:早番・日勤 / 週4日 / 希望時給:1750円' },
+      { id: '01M4R002', name: '高橋 美咲', kana: 'タカハシ ミサキ', phone: '09033334444', dob: '1990-08-23', age: 36, address: '東京都世田谷区太子堂2-15', pref: '東京都', branch: '本社', staff: '佐藤 翔太', qualification: '初任者研修', jobType: '介護', status: '未来希望', finalStatus: '未来人材', applyDate: '2026-11-01 11:20', attendDate: '2026-11-03 14:00', contactDate: '2026-11-03 14:00', startDate: '2026-12-15', conditions: 'シフト:日勤のみ / 週3〜4日 / 希望時給:1650円' },
+      { id: '01M4R003', name: '伊藤 健一', kana: 'イトウ ケンイチ', phone: '08055556666', dob: '1978-11-05', age: 48, address: '埼玉県さいたま市大宮区桜木町1-8', pref: '埼玉県', branch: '埼玉', staff: '中村 優子', qualification: '正看護師', jobType: '看護', status: 'アテンド済', finalStatus: 'FIX待ち', applyDate: '2026-11-02 09:30', attendDate: '2026-11-05 15:00', contactDate: '2026-11-05 15:00', startDate: '', conditions: 'シフト:日勤 / 週5日 / 希望時給:2300円' },
+      { id: '01M4R004', name: '渡辺 真由美', kana: 'ワタナベ マユミ', phone: '07077778888', dob: '1982-02-19', age: 44, address: '神奈川県横浜市西区南幸2-10', pref: '神奈川県', branch: '神奈川', staff: '山上 健太', qualification: '実務者研修', jobType: '介護', status: '職見済', finalStatus: '激熱掘起', applyDate: '2026-09-10 13:00', attendDate: '2026-09-15 11:00', contactDate: '2026-09-15 11:00', startDate: '', conditions: 'シフト:夜勤専従 / 週2回' },
+      { id: '01M4R005', name: '小林 誠', kana: 'コバヤシ マコト', phone: '09099990000', dob: '1988-07-30', age: 38, address: '東京都江東区豊洲3-5', pref: '東京都', branch: '東京東', staff: '佐藤 翔太', qualification: '介護福祉士', jobType: '介護', status: '未アテンド', finalStatus: '未接触', applyDate: '2026-09-01 18:10', attendDate: '', contactDate: '2026-09-02 10:00', startDate: '', conditions: 'シフト:フルシフト / 週5日' }
+    ];
+    state.csvHeaders = ['応募者ID', '最終ステータス', '氏名', 'フリガナ', '電話番号', '生年月日', '年齢', '住所', '都道府県', '担当支店', 'アテンド担当ユーザー', '保有資格', '職種', 'ステータス', '応募日', 'アテンド日', '接触日時', '就業開始希望日', '把握済条件'];
+    processCandidates(fallbackSamples, 'デモデータ');
+  }
+
+  function normalizePhone(p) { return String(p || '').replace(/[^\d]/g, ''); }
+  function normalizeText(t) { return String(t || '').replace(/[\s\u3000]+/g, '').trim(); }
+
+  // B列（2列目）またはfinalStatusから最終ステータスを確実に取得
+  function getColBFinalStatus(c) {
+    if (c.rawRow && state.csvHeaders && state.csvHeaders.length >= 2) {
+      var colBHeader = state.csvHeaders[1];
+      if (colBHeader && c.rawRow[colBHeader] !== undefined && String(c.rawRow[colBHeader]).trim() !== '') {
+        return String(c.rawRow[colBHeader]).trim();
+      }
+    }
+    if (c.rawRow && c.rawRow['最終ステータス'] !== undefined && String(c.rawRow['最終ステータス']).trim() !== '') {
+      return String(c.rawRow['最終ステータス']).trim();
+    }
+    return String(c.finalStatus || '').trim();
+  }
+
+  function isActiveOrPendingRecord(c) {
+    var bStatus = getColBFinalStatus(c);
+    var combined = (c.status || '') + ' ' + bStatus;
+    for (var i = 0; i < ACTIVE_OR_PENDING_KEYWORDS.length; i++) {
+      if (combined.indexOf(ACTIVE_OR_PENDING_KEYWORDS[i]) !== -1) return true;
+    }
+    return false;
+  }
+
+  function getPersonKey(c) {
+    var ph = normalizePhone(c.phone);
+    if (ph.length >= 9) return 'PH_' + ph;
+    var nk = normalizeText(c.kana || c.name);
+    var db = normalizeText(c.dob);
+    if (nk && db) return 'KD_' + nk + '_' + db;
+    return 'ID_' + (c.id || Math.random().toString(36).slice(2));
+  }
+
+  function processCandidates(rawList, badgeLabel) {
+    state.rawCandidates = rawList;
+    document.getElementById('dataSourceBadge').textContent = badgeLabel;
+
+    var activePhones = new Set();
+    var activePersons = [];
+    rawList.forEach(function(c) {
+      var bSt = getColBFinalStatus(c);
+      if (bSt) c.finalStatus = bSt;
+      if (isActiveOrPendingRecord(c)) {
+        var ph = normalizePhone(c.phone);
+        if (ph.length >= 9) activePhones.add(ph);
+        activePersons.push({
+          name: normalizeText(c.name),
+          kana: normalizeText(c.kana),
+          address: normalizeText(c.address),
+          statusLabel: String(bSt || c.status || '稼働・待ち')
+        });
+      }
+    });
+    state.activePhonesSet = activePhones;
+    state.activePersonsList = activePersons;
+
+    var map = new Map();
+    var dupCount = 0;
+
+    rawList.forEach(function(item) {
+      var key = getPersonKey(item);
+      if (!map.has(key)) {
+        map.set(key, Object.assign({}, item, { personKey: key, mergedIds: [item.id], mergedCount: 1 }));
+      } else {
+        dupCount++;
+        var existing = map.get(key);
+        existing.mergedCount += 1;
+        if (item.id && existing.mergedIds.indexOf(item.id) === -1) existing.mergedIds.push(item.id);
+        if (getProgressScore(item) > getProgressScore(existing)) {
+          var keepIds = existing.mergedIds;
+          var keepCount = existing.mergedCount;
+          map.set(key, Object.assign({}, item, { personKey: key, mergedIds: keepIds, mergedCount: keepCount }));
+        }
+      }
+    });
+
+    state.mergedDupCount = dupCount;
+
+    var autoExc = 0;
+    var finalMerged = [];
+
+    map.forEach(function(c) {
+      var ph = normalizePhone(c.phone);
+      if (ph.length >= 9 && activePhones.has(ph)) {
+        autoExc++;
+        return;
+      }
+
+      var nName = normalizeText(c.name);
+      var nKana = normalizeText(c.kana);
+      var nAddr = normalizeText(c.address);
+      var warnMatch = null;
+      if (nName || nKana) {
+        warnMatch = activePersons.find(function(ap) {
+          var nameSame = (nName && ap.name === nName) || (nKana && ap.kana === nKana);
+          if (!nameSame) return false;
+          if (!nAddr || !ap.address) return true;
+          return ap.address.slice(0, 6) === nAddr.slice(0, 6);
+        });
+      }
+      c.activeWarning = warnMatch ? '⚠️ 稼働・職見・内定待ちかも（' + warnMatch.statusLabel + 'と氏名/住所一致）' : '';
+      c.assignedTab = classifyCandidateTab(c);
+      finalMerged.push(c);
+    });
+
+    state.autoExcludedCount = autoExc;
+    state.mergedCandidates = finalMerged;
+
+    populateFilterOptions();
+    updateTabBadges();
+    renderList();
+  }
+
+  function getProgressScore(c) {
+    var score = 0;
+    var bSt = getColBFinalStatus(c);
+    if (isActiveOrPendingRecord(c)) score += 100;
+    if (bSt.indexOf('FIX待ち') !== -1) score += 50;
+    if (c.attendDate) score += 20;
+    if (c.startDate) score += 15;
+    var d = parseDateSafe(c.attendDate || c.contactDate || c.applyDate);
+    if (d) score += d.getTime() / 1e11;
+    return score;
+  }
+
+  function parseDateSafe(str) {
+    if (!str) return null;
+    var clean = String(str).trim().replace(/\//g, '-');
+    var d = new Date(clean);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  // タブ振り分けロジック（B列＝最終ステータス厳格判定）
+  function classifyCandidateTab(c) {
+    var now = new Date();
+    var finalSt = getColBFinalStatus(c); // B列（最終ステータス）
+    var st = String(c.status || '');
+    var attendD = parseDateSafe(c.attendDate || c.contactDate);
+    var applyD = parseDateSafe(c.applyDate);
+    var startD = parseDateSafe(c.startDate);
+
+    // 1. 3日以内 未FIX人材（B列＝FIX待ち かつ アテンド・接触から12時間以上〜72時間以内）
+    if (finalSt.indexOf('FIX待ち') !== -1) {
+      if (attendD) {
+        var diffHours = (now.getTime() - attendD.getTime()) / (1000 * 60 * 60);
+        if (diffHours >= 12 && diffHours <= 72) {
+          return 'within3days';
+        }
+        // 2. 未FIX人材（B列＝FIX待ち かつ アテンド・接触から7〜10日経過）
+        var dDays = (now.getTime() - attendD.getTime()) / (1000 * 60 * 60 * 24);
+        if (dDays >= 7 && dDays <= 10) {
+          return 'unfixed';
+        }
+      }
+      // B列がFIX待ちでも上記日数枠外の人は他タブへ誤分類しない
+      return 'other_fix_wait';
+    }
+
+    // 3. 激熱掘起（職見済・激熱・アテンド後11日〜44日経過）
+    if (finalSt.indexOf('激熱') !== -1 || st.indexOf('職見済') !== -1 || finalSt.indexOf('職見済') !== -1) {
+      return 'hot';
+    }
+    if (attendD && finalSt.indexOf('NG') === -1 && finalSt.indexOf('辞退') === -1) {
+      var hDays = (now.getTime() - attendD.getTime()) / (1000 * 60 * 60 * 24);
+      if (hDays > 10 && hDays < 45) return 'hot';
+    }
+
+    // 4. 未来人材（就業開始希望日が本日から45日以内、またはB列が未来人材）
+    if (startD) {
+      var diffDays = Math.ceil((startD.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays >= 0 && diffDays <= 45) {
+        c.daysUntilStart = diffDays;
+        return 'future';
+      }
+    }
+    if (finalSt.indexOf('未来') !== -1 || st.indexOf('未来') !== -1) return 'future';
+
+    // 5. 通常掘起（応募から45日以上経過）
+    if (applyD) {
+      var applyDays = (now.getTime() - applyD.getTime()) / (1000 * 60 * 60 * 24);
+      if (applyDays >= 45) return 'normal';
+    }
+
+    return 'normal';
+  }
+
+  function extractSafeSalutation(c) {
+    if (c.rawRow && c.rawRow['姓'] && String(c.rawRow['姓']).trim()) {
+      return { text: String(c.rawRow['姓']).trim() + '様', mode: '名字抽出' };
+    }
+    var fullName = String(c.name || '').trim();
+    if (!fullName) return { text: 'ご担当者様', mode: 'デフォルト' };
+    var parts = fullName.split(/[\s\u3000]+/).filter(Boolean);
+    if (parts.length >= 2) return { text: parts[0] + '様', mode: '名字抽出' };
+    return { text: fullName + '様', mode: 'フルネーム安全表記' };
+  }
+
+  function getMatchedJobs(c) {
+    var cType = String(c.jobType || '介護');
+    var isNurse = cType.indexOf('看護') !== -1;
+
+    var disp = state.dispatchJobs.filter(function(j) {
+      var jNurse = String(j.jobType || '').indexOf('看護') !== -1;
+      return isNurse ? jNurse : !jNurse;
+    }).sort(function(a, b) {
+      return String(b.boDate || '').localeCompare(String(a.boDate || ''));
+    }).slice(0, 3);
+
+    var dir = state.directJobs.filter(function(j) {
+      var jNurse = String(j.jobType || '').indexOf('看護') !== -1;
+      return isNurse ? jNurse : !jNurse;
+    }).slice(0, 2);
+
+    return { dispatch: disp, direct: dir };
+  }
+
+  function buildMessageForCandidate(c, reasonOverride) {
+    var sal = extractSafeSalutation(c);
+    var jobs = getMatchedJobs(c);
+    var log = state.actionLogs[c.personKey];
+    var tab = c.assignedTab;
+
+    var jobLines = jobs.dispatch.map(function(j, idx) {
+      return '【候補' + (idx + 1) + '】' + j.name + LF + '・住所：' + (j.address || '詳細はお問い合わせください') + '（ご自宅から約' + j.distKm + 'km）' + LF + '・条件：' + (j.wage || '') + ' / ' + (j.shift || '');
+    }).join(LF + LF);
+
+    var directHook = jobs.direct.length > 0
+      ? LF + LF + '★また、ご自宅から約' + jobs.direct[0].distKm + 'km圏内に【直接雇用（正社員・パート）】の特別募集枠（' + jobs.direct[0].name + '／' + (jobs.direct[0].address || '') + '）も出ております！'
+      : '';
+
+    var bodyJobs = (jobLines || '・近隣エリアの好条件求人を複数確保しております。') + directHook;
+
+    if (tab === 'within3days') {
+      var reason = reasonOverride || state.slideReasons[state.currentReasonIdx % state.slideReasons.length];
+      return [
+        sal.text, '',
+        'お世話になっております。ビースタイルの' + (c.staff || '担当') + 'です。',
+        '先日お話しさせていただいた件につきまして、実は先ほど確認したところ、ご希望いただいていた求人が【' + reason + '】という状況になってしまいました。', '',
+        'せっかくお時間をいただいたのに申し訳ございません！',
+        '代わりにご自宅から通いやすい近隣エリアで、条件に合う新着求人をピックアップいたしました。', '',
+        bodyJobs, '',
+        'もし気になるものがございましたら、すぐ詳細をお送りしますのでお気軽にご返信ください！'
+      ].join(LF);
+    }
+
+    if (tab === 'future') {
+      return [
+        sal.text, '',
+        'お世話になっております。ビースタイルの' + (c.staff || '担当') + 'です。',
+        'ご就業希望時期（' + (c.startDate || '近日中') + '）が近づいてまいりましたので、最新の募集状況のご案内です！', '',
+        '現在、ご自宅周辺で以下の好条件案件が出ております。', '',
+        bodyJobs, '',
+        'ご希望条件に変更がないか、また見学など進められそうか、ご都合のよいタイミングでお知らせいただけますでしょうか？'
+      ].join(LF);
+    }
+
+    if (tab === 'unfixed') {
+      return [
+        sal.text, '',
+        'お世話になっております。ビースタイルの' + (c.staff || '担当') + 'です。',
+        '先日ご提案させていただきました件、その後ご状況はいかがでしょうか？', '',
+        '現在もご自宅から5km圏内で以下の求人が募集中となっております。', '',
+        bodyJobs, '',
+        '「まずは条件だけ詳しく聞きたい」「他で決まった」など、一言だけでもご返信いただけますと幸いです！'
+      ].join(LF);
+    }
+
+    if (tab === 'hot') {
+      if (log && log.status === 'reminded') {
+        return [
+          sal.text, '',
+          '度々のご連絡失礼いたします。ビースタイルの' + (c.staff || '担当') + 'です！',
+          '昨日お送りさせていただきました近隣の募集案件ですが、枠が埋まりやすくなっているため念のためリマインドさせていただきました。', '',
+          'お忙しいところ恐縮ですが、もし少しでもご興味があれば「詳細希望」とだけご返信ください！'
+        ].join(LF);
+      }
+      return [
+        sal.text, '',
+        'ご無沙汰しております！ビースタイルの' + (c.staff || '担当') + 'です。',
+        '以前お話しさせていただいたご希望条件にぴったりの新着案件が入りましたので、優先的にご連絡いたしました！', '',
+        bodyJobs, '',
+        '今すぐのご転職でなくても情報収集だけでも大歓迎ですので、ぜひお気軽にご返信ください！'
+      ].join(LF);
+    }
+
+    return [
+      sal.text, '',
+      'お世話になっております。ビースタイルの' + (c.staff || '担当') + 'です。',
+      'その後、お仕事のご状況はいかがでしょうか？', '',
+      '現在、お住まいのエリア周辺で新しい募集枠が複数出ておりますのでご案内いたします。', '',
+      bodyJobs, '',
+      '現在のシフト希望やご状況に合わせて改めてお探しすることも可能ですので、ぜひお気軽にお声がけください！'
+    ].join(LF);
+  }
+
+  function isKantoCandidate(c) {
+    var branch = String(c.branch || '').trim();
+    for (var i = 0; i < KANTO_BRANCHES.length; i++) {
+      if (branch.indexOf(KANTO_BRANCHES[i]) !== -1) return true;
+    }
+    var pref = String(c.pref || c.address || '');
+    if (!branch && /(東京都|神奈川県|埼玉県|千葉県|茨城県|栃木県|群馬県)/.test(pref)) return true;
+    return false;
+  }
+
+  function getActionState(c) {
+    var log = state.actionLogs[c.personKey];
+    if (!log) return { isHidden: false, isActed: false, label: '未対応' };
+
+    var now = Date.now();
+    if (log.cooldownUntil && now < log.cooldownUntil) {
+      var remDays = Math.ceil((log.cooldownUntil - now) / (1000 * 60 * 60 * 24));
+      return { isHidden: true, isActed: true, label: '30日クールダウン中（残' + remDays + '日）' };
+    }
+
+    if (c.assignedTab === 'hot' && log.status === 'wait_remind') {
+      if (now >= (log.remindReadyAt || 0)) {
+        log.status = 'reminded';
+        saveActionLogs();
+        return { isHidden: false, isActed: false, isRemindReady: true, label: '🔔 翌日リマインド対象' };
+      }
+      return { isHidden: false, isActed: true, label: '初回送信済（翌日リマインド待機）' };
+    }
+
+    if (log.status === 'reminded') {
+      return { isHidden: false, isActed: false, isRemindReady: true, label: '🔔 翌日リマインド対象' };
+    }
+
+    if (log.status === 'done') {
+      var dt = log.lastSentAt ? new Date(log.lastSentAt).toLocaleDateString('ja-JP') : '';
+      return { isHidden: false, isActed: true, label: '対応済（' + dt + '送信）' };
+    }
+
+    return { isHidden: false, isActed: false, label: '未対応' };
+  }
+
+  function getFilteredCandidates(options) {
+    options = options || {};
+    var targetTab = options.tab !== undefined ? options.tab : state.currentTab;
+    var targetArea = options.area !== undefined ? options.area : state.currentArea;
+    var unactedOnly = options.unactedOnly !== undefined ? options.unactedOnly : document.getElementById('filterUnactedOnly').checked;
+    var prefVal = options.ignoreFilters ? '' : document.getElementById('filterPref').value;
+    var staffVal = options.ignoreFilters ? '' : document.getElementById('filterStaff').value;
+    var branchVal = options.ignoreFilters ? '' : document.getElementById('filterBranch').value;
+    var q = options.ignoreFilters ? '' : normalizeText(document.getElementById('searchInput').value).toLowerCase();
+
+    return state.mergedCandidates.filter(function(c) {
+      if (state.excludedMap[c.personKey]) return false;
+      if (targetArea === 'kanto' && !isKantoCandidate(c)) return false;
+
+      if (targetTab) {
+        if (c.assignedTab !== targetTab) return false;
+      } else {
+        // 全5タブ一括出力時
+        if (['within3days', 'unfixed', 'hot', 'future', 'normal'].indexOf(c.assignedTab) === -1) return false;
+      }
+
+      var act = getActionState(c);
+      if (act.isHidden) return false;
+      if (unactedOnly && act.isActed) return false;
+
+      if (prefVal && c.pref !== prefVal) return false;
+      if (staffVal && c.staff !== staffVal) return false;
+      if (branchVal && c.branch !== branchVal) return false;
+      if (q) {
+        var hay = (c.name + ' ' + c.kana + ' ' + c.phone + ' ' + c.id + ' ' + c.address + ' ' + c.qualification).toLowerCase();
+        if (hay.indexOf(q) === -1) return false;
+      }
+      return true;
+    });
+  }
+
+  function updateTabBadges() {
+    var tabs = ['within3days', 'unfixed', 'hot', 'future', 'normal'];
+    tabs.forEach(function(t) {
+      var list = getFilteredCandidates({ tab: t, unactedOnly: true, ignoreFilters: true });
+      var badge = document.getElementById('badge-' + t);
+      if (badge) badge.textContent = list.length;
+    });
+    document.getElementById('excludedCountBadge').textContent = Object.keys(state.excludedMap).length;
+  }
+
+  window.switchTab = function(tabId) {
+    state.currentTab = tabId;
+    ['within3days', 'unfixed', 'hot', 'future', 'normal'].forEach(function(t) {
+      var btn = document.getElementById('tab-' + t);
+      var badge = document.getElementById('badge-' + t);
+      if (t === tabId) {
+        btn.className = 'tab-active py-2.5 px-2.5 whitespace-nowrap flex items-center gap-1.5 transition';
+        badge.className = 'px-1.5 py-0.5 text-[11px] rounded-full bg-orange-500 text-zinc-950 font-black';
+      } else {
+        btn.className = 'tab-inactive py-2.5 px-2.5 whitespace-nowrap flex items-center gap-1.5 transition';
+        badge.className = 'px-1.5 py-0.5 text-[11px] rounded-full bg-zinc-800 text-zinc-300 font-bold';
+      }
+    });
+    updateGuideText();
+    renderList();
+  };
+
+  window.switchArea = function(areaId) {
+    state.currentArea = areaId;
+    var kBtn = document.getElementById('area-kanto');
+    var aBtn = document.getElementById('area-all');
+    if (areaId === 'kanto') {
+      kBtn.className = 'px-3.5 py-1 rounded-md text-xs font-black bg-zinc-900 text-orange-400 shadow-sm transition';
+      aBtn.className = 'px-3.5 py-1 rounded-md text-xs font-bold text-gray-600 hover:text-gray-900 transition';
+    } else {
+      aBtn.className = 'px-3.5 py-1 rounded-md text-xs font-black bg-zinc-900 text-orange-400 shadow-sm transition';
+      kBtn.className = 'px-3.5 py-1 rounded-md text-xs font-bold text-gray-600 hover:text-gray-900 transition';
+    }
+    updateTabBadges();
+    renderList();
+  };
+
+  function updateGuideText() {
+    var map = {
+      within3days: {
+        title: '【3日以内 未FIX人材】の抽出基準・アプローチ設計を見る',
+        desc: 'CSVのB列（最終ステータス）＝「FIX待ち」かつ、アテンド・接触から12時間以上〜3日（72時間）以内の対象者のみを抽出。名字を安全に自動抽出し、4種類のスライド理由をランダム差し込みして近隣5kmBOを提案します。'
+      },
+      unfixed: {
+        title: '【未FIX人材】の抽出基準・アプローチ設計を見る',
+        desc: 'CSVのB列（最終ステータス）＝「FIX待ち」かつ、アテンド・接触から7〜10日経過した対象者のみを抽出。5km圏内派遣BO（新着順3件）と2km圏内直接雇用フックで再アプローチします。'
+      },
+      hot: {
+        title: '【激熱掘起】の抽出基準・アプローチ設計を見る',
+        desc: '職見済・激熱層を抽出。初回送信すると翌日に「🔔 翌日リマインド対象」として自動再浮上し専用文面に切り替わります。リマインド送信後は30日間自動でクールダウン（非表示）になります。'
+      },
+      future: {
+        title: '【未来人材】の抽出基準・アプローチ設計を見る',
+        desc: '就業開始希望日が本日から45日以内（またはB列が未来人材）の対象者を抽出。希望時期が近づいたタイミングで最新5km案件を案内します。'
+      },
+      normal: {
+        title: '【通常掘起】の抽出基準・アプローチ設計を見る',
+        desc: '応募から45日以上経過した掘り起こし対象層を抽出。送信後は30日間自動でクールダウン（非表示）になります。'
+      }
+    };
+    var info = map[state.currentTab] || map.within3days;
+    document.getElementById('guideTitle').textContent = info.title;
+    document.getElementById('guideDesc').textContent = info.desc;
+  }
+
+  window.toggleGuide = function() {
+    var body = document.getElementById('guideBody');
+    var arrow = document.getElementById('guideArrow');
+    if (body.classList.contains('hidden')) {
+      body.classList.remove('hidden');
+      arrow.textContent = '閉じる ▲';
+    } else {
+      body.classList.add('hidden');
+      arrow.textContent = '開く ▼';
+    }
+  };
+
+  function populateFilterOptions() {
+    var prefs = new Set(), staffs = new Set(), branches = new Set();
+    state.mergedCandidates.forEach(function(c) {
+      if (c.pref) prefs.add(c.pref);
+      if (c.staff) staffs.add(c.staff);
+      if (c.branch) branches.add(c.branch);
+    });
+    fillSelect('filterPref', '都道府県：すべて', Array.from(prefs));
+    fillSelect('filterStaff', 'アテンド担当ユーザー：すべて', Array.from(staffs));
+    fillSelect('filterBranch', '担当支店：すべて', Array.from(branches));
+  }
+
+  function fillSelect(id, defaultLabel, items) {
+    var sel = document.getElementById(id);
+    var prev = sel.value;
+    sel.innerHTML = '<option value="">' + defaultLabel + '</option>' +
+      items.map(function(v) { return '<option value="' + escapeHtml(v) + '">' + escapeHtml(v) + '</option>'; }).join('');
+    if (items.indexOf(prev) !== -1) sel.value = prev;
+  }
+
+  window.renderList = function() {
+    updateTabBadges();
+    var list = getFilteredCandidates();
+    document.getElementById('resultCountText').textContent = '該当: ' + list.length + '件';
+    document.getElementById('jobMasterSummary').textContent = '案件マスタ：派遣BO(5km) ' + state.dispatchJobs.length + '件 ／ 紹介(2km) ' + state.directJobs.length + '件';
+    document.getElementById('autoExcludedSummary').textContent = state.autoExcludedCount > 0 ? '（稼働/職見/内定待ち自動除外: ' + state.autoExcludedCount + '件）' : '';
+
+    var container = document.getElementById('candidateList');
+    if (list.length === 0) {
+      container.innerHTML = '<div class="bg-white rounded-2xl border border-gray-200 p-10 text-center text-gray-500 text-xs space-y-2"><p class="font-bold text-sm text-gray-700">該当する追客対象者はありません</p><p>エリア切替（関東 / 全エリア）や「未対応のみ表示」のチェックを外して確認できます。</p></div>';
+      return;
+    }
+
+    container.innerHTML = list.map(function(c, idx) {
+      var sal = extractSafeSalutation(c);
+      var act = getActionState(c);
+      var jobs = getMatchedJobs(c);
+      var condId = 'cond-box-' + idx;
+      var bSt = getColBFinalStatus(c);
+      var statusBadgeClass = act.isRemindReady ? 'bg-amber-100 text-amber-800 border-amber-300 animate-pulse' : (act.isActed ? 'bg-sky-50 text-sky-700 border-sky-200' : 'bg-rose-50 text-rose-700 border-rose-200');
+
+      var directHtml = jobs.direct.length > 0 ? (
+        '<div class="rounded-xl bg-purple-50/70 border border-purple-200 px-3 py-2 text-xs space-y-1">' +
+        '<div class="flex items-center justify-between font-bold text-purple-800"><span>🏠 2km圏内・紹介（直接雇用）特別フック案件</span><span>' + jobs.direct.length + '件</span></div>' +
+        jobs.direct.map(function(d) {
+          return '<div class="flex flex-wrap items-center justify-between gap-1 text-gray-800 pt-0.5"><div><span class="font-bold">' + escapeHtml(d.name) + '</span><span class="text-[11px] text-purple-700 ml-1.5">📍 ' + escapeHtml(d.address || '住所情報同期待ち') + '</span></div><span class="text-[11px] font-bold text-purple-700">約' + d.distKm + 'km</span></div>';
+        }).join('') + '</div>'
+      ) : '';
+
+      var dispHtml = '<div class="rounded-xl bg-orange-50/60 border border-orange-200 px-3 py-2 text-xs space-y-1">' +
+        '<div class="flex items-center justify-between font-bold text-orange-800"><span>📍 5km以内の派遣・紹介予定派遣BO（BO取得日時が新しい順）</span><span>' + jobs.dispatch.length + '件</span></div>' +
+        jobs.dispatch.map(function(j) {
+          return '<div class="flex flex-wrap items-center justify-between gap-1 text-gray-800 border-t border-orange-100 pt-1"><div><span class="font-bold">' + escapeHtml(j.name) + '</span><span class="text-[11px] text-gray-600 ml-1.5">📍 ' + escapeHtml(j.address || '住所未設定（URL設定から同期可）') + '</span></div><div class="text-[11px] whitespace-nowrap"><span class="font-bold text-orange-700">約' + j.distKm + 'km</span><span class="text-gray-500 ml-1.5">BO:' + escapeHtml(j.boDate || '-') + '</span></div></div>';
+        }).join('') + '</div>';
+
+      var warnHtml = c.activeWarning ? (
+        '<div class="bg-amber-50 border border-amber-300 rounded-xl px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">' +
+        '<span class="font-black text-amber-900">' + escapeHtml(c.activeWarning) + '</span>' +
+        '<label class="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border border-amber-400 font-bold text-rose-700 cursor-pointer hover:bg-rose-50">' +
+        '<input type="checkbox" onchange="excludeCandidateForever(' + SQ + escapeHtml(c.personKey) + SQ + ')" class="accent-rose-600 w-4 h-4" />' +
+        '<span>本人確定のため永続除外する（タイムスタンプ保存）</span></label></div>'
+      ) : '';
+
+      return '<div class="bg-white rounded-2xl border ' + (c.activeWarning ? 'border-amber-400 ring-2 ring-amber-200' : 'border-gray-200') + ' p-4 shadow-sm hover:shadow-md transition space-y-3">' +
+        '<div class="flex flex-wrap items-center justify-between gap-2">' +
+          '<div class="flex flex-wrap items-center gap-1.5 text-[11px]">' +
+            '<span class="px-2 py-0.5 rounded bg-zinc-100 text-zinc-700 font-bold">' + escapeHtml(c.jobType || '介護') + '</span>' +
+            '<span class="px-2 py-0.5 rounded border font-bold ' + statusBadgeClass + '">' + escapeHtml(act.label) + '</span>' +
+            (bSt ? '<span class="px-2 py-0.5 rounded bg-orange-50 text-orange-700 border border-orange-200 font-bold">B列(最終ステータス): ' + escapeHtml(bSt) + '</span>' : '') +
+            (typeof c.daysUntilStart === 'number' ? '<span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold">開始まであと' + c.daysUntilStart + '日</span>' : '') +
+            (c.mergedCount > 1 ? '<span class="px-2 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 font-bold">名寄せ統合: ' + c.mergedCount + '件</span>' : '') +
+          '</div>' +
+          '<div class="flex flex-wrap items-center gap-1.5 text-[11px]">' +
+            '<button type="button" onclick="openRawRowModal(' + SQ + escapeHtml(c.personKey) + SQ + ')" class="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold">全列データ</button>' +
+            '<span class="px-2 py-1 rounded bg-zinc-100 text-zinc-500 font-mono">ID: ' + escapeHtml(c.id || '-') + '</span>' +
+            '<a href="https://b-style-20260516.duo.arrove.jp/" target="_blank" rel="noopener noreferrer" onclick="copyIdToast(' + SQ + escapeHtml(c.id || '') + SQ + ')" class="px-2.5 py-1 rounded bg-zinc-900 hover:bg-zinc-800 text-white font-bold">希望日変更・修正 ↗</a>' +
+          '</div>' +
+        '</div>' +
+        warnHtml +
+        '<div>' +
+          '<div class="flex flex-wrap items-baseline gap-2">' +
+            '<h3 class="text-base sm:text-lg font-black text-gray-900">' + escapeHtml(c.name || '氏名不明') + '</h3>' +
+            '<span class="text-[11px] px-2 py-0.5 rounded bg-orange-50 text-orange-700 border border-orange-200 font-bold">宛名: ' + escapeHtml(sal.text) + '（' + sal.mode + '）</span>' +
+            '<span class="text-xs text-gray-500">' + escapeHtml(c.kana || '') + (c.age ? '（' + c.age + '歳）' : '') + ' ／ ' + escapeHtml(c.address || '住所未登録') + '</span>' +
+          '</div>' +
+          '<div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600">' +
+            (c.phone ? '<span class="font-bold text-gray-900">TEL: ' + escapeHtml(c.phone) + '</span>' : '') +
+            '<span>応募日: ' + escapeHtml(c.applyDate || '-') + '</span>' +
+            '<span>アテンド日: ' + escapeHtml(c.attendDate || '-') + '</span>' +
+            '<span>資格: ' + escapeHtml(c.qualification || '-') + '</span>' +
+            '<span>担当: ' + escapeHtml(c.staff || '-') + '（' + escapeHtml(c.branch || '-') + '）</span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="border border-gray-200 rounded-xl bg-gray-50/70 overflow-hidden">' +
+          '<button type="button" onclick="toggleConditionBox(' + SQ + condId + SQ + ', this)" class="w-full px-3 py-2 flex items-center justify-between text-left text-xs font-bold text-gray-700 hover:bg-gray-100 transition">' +
+            '<span>📋 把握済条件・詳細メモを見る（デフォルト非表示）</span><span class="text-gray-400">開く ▼</span>' +
+          '</button>' +
+          '<div id="' + condId + '" class="hidden px-3 pb-3 pt-1.5 border-t border-gray-200 text-xs text-gray-700 leading-relaxed whitespace-pre-wrap bg-white">' + escapeHtml(c.conditions || '把握済条件の記載なし') + '</div>' +
+        '</div>' +
+        '<div class="space-y-1.5">' + directHtml + dispHtml + '</div>' +
+        '<div class="flex flex-wrap items-center gap-2 pt-1">' +
+          '<button type="button" onclick="openMessageModal(' + SQ + escapeHtml(c.personKey) + SQ + ')" class="flex-1 min-w-[160px] py-2.5 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-900 text-white text-xs font-black transition shadow-sm">文面作成・確認</button>' +
+          '<button type="button" onclick="quickMarkDone(' + SQ + escapeHtml(c.personKey) + SQ + ')" class="flex-1 min-w-[180px] py-2.5 px-4 rounded-xl bg-white hover:bg-orange-50 text-gray-900 border border-gray-300 hover:border-orange-400 text-xs font-bold transition">送信記録をつける（完了）</button>' +
+          '<button type="button" onclick="undoActionLog(' + SQ + escapeHtml(c.personKey) + SQ + ')" class="py-2.5 px-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-bold transition">未対応に戻す</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  };
+
+  window.toggleConditionBox = function(id, btn) {
+    var el = document.getElementById(id);
+    var arrow = btn.querySelector('span:last-child');
+    if (el.classList.contains('hidden')) {
+      el.classList.remove('hidden');
+      arrow.textContent = '閉じる ▲';
+    } else {
+      el.classList.add('hidden');
+      arrow.textContent = '開く ▼';
+    }
+  };
+
+  window.copyIdToast = function(id) {
+    if (id && navigator.clipboard) navigator.clipboard.writeText(id).catch(function() {});
+  };
+
+  function recordSentAction(personKey) {
+    var c = state.mergedCandidates.find(function(x) { return x.personKey === personKey; });
+    if (!c) return;
+    var now = Date.now();
+    var prev = state.actionLogs[personKey];
+    var thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+    var oneDayMs = 24 * 60 * 60 * 1000;
+
+    if (c.assignedTab === 'hot') {
+      if (prev && (prev.status === 'reminded' || prev.status === 'wait_remind')) {
+        state.actionLogs[personKey] = { status: 'cooldown', firstSentAt: prev.firstSentAt || now, lastSentAt: now, cooldownUntil: now + thirtyDaysMs, tab: c.assignedTab };
+      } else {
+        state.actionLogs[personKey] = { status: 'wait_remind', firstSentAt: now, lastSentAt: now, remindReadyAt: now + oneDayMs, tab: c.assignedTab };
+      }
+    } else if (c.assignedTab === 'normal') {
+      state.actionLogs[personKey] = { status: 'cooldown', firstSentAt: now, lastSentAt: now, cooldownUntil: now + thirtyDaysMs, tab: c.assignedTab };
+    } else {
+      state.actionLogs[personKey] = { status: 'done', firstSentAt: (prev && prev.firstSentAt) || now, lastSentAt: now, tab: c.assignedTab };
+    }
+    saveActionLogs();
+    renderList();
+  }
+
+  window.quickMarkDone = function(personKey) { recordSentAction(personKey); };
+  window.undoActionLog = function(personKey) { delete state.actionLogs[personKey]; saveActionLogs(); renderList(); };
+
+  window.excludeCandidateForever = function(personKey) {
+    var c = state.mergedCandidates.find(function(x) { return x.personKey === personKey; });
+    if (!c) return;
+    var ts = new Date().toLocaleString('ja-JP');
+    state.excludedMap[personKey] = {
+      name: c.name || '不明',
+      phone: c.phone || '-',
+      address: c.address || '-',
+      reason: c.activeWarning || '手動チェック除外',
+      timestamp: ts
+    };
+    saveExcludedMap();
+    renderList();
+    showPopup('永続除外として格納しました', c.name + ' 様を除外リストへ保存しました。' + LF + 'タイムスタンプ：' + ts + LF + '（CSVを再読み込みしても除外状態は維持されます）');
+  };
+
+  window.restoreExcludedCandidate = function(personKey) {
+    delete state.excludedMap[personKey];
+    saveExcludedMap();
+    renderExcludedModal();
+    renderList();
+  };
+
+  window.openMessageModal = function(personKey) {
+    var c = state.mergedCandidates.find(function(x) { return x.personKey === personKey; });
+    if (!c) return;
+    state.modalTarget = c;
+    state.currentReasonIdx = Math.floor(Math.random() * state.slideReasons.length);
+    var sal = extractSafeSalutation(c);
+    var log = state.actionLogs[c.personKey];
+
+    document.getElementById('modalCandidateName').textContent = c.name + '（' + (c.branch || '-') + '）';
+    document.getElementById('modalSalutationInfo').textContent = '宛名判定：' + sal.text + '（' + sal.mode + '）';
+
+    var shuffleBox = document.getElementById('shuffleReasonBox');
+    if (c.assignedTab === 'within3days') {
+      shuffleBox.classList.remove('hidden');
+      document.getElementById('currentReasonText').textContent = state.slideReasons[state.currentReasonIdx];
+    } else {
+      shuffleBox.classList.add('hidden');
+    }
+
+    var remindBox = document.getElementById('remindNoticeBox');
+    if (c.assignedTab === 'hot' && log && log.status === 'reminded') {
+      remindBox.classList.remove('hidden');
+    } else {
+      remindBox.classList.add('hidden');
+    }
+
+    document.getElementById('modalMessageText').value = buildMessageForCandidate(c);
+    openModal('msgModal');
+  };
+
+  window.shuffleReason = function() {
+    if (!state.modalTarget) return;
+    state.currentReasonIdx = (state.currentReasonIdx + 1) % state.slideReasons.length;
+    var reason = state.slideReasons[state.currentReasonIdx];
+    document.getElementById('currentReasonText').textContent = reason;
+    document.getElementById('modalMessageText').value = buildMessageForCandidate(state.modalTarget, reason);
+  };
+
+  window.copyMessageOnly = function() {
+    var txt = document.getElementById('modalMessageText').value;
+    if (navigator.clipboard) navigator.clipboard.writeText(txt);
+    showPopup('文面をコピーしました', 'クリップボードに送信文面をコピーしました。');
+  };
+
+  window.copyAndRecordAction = function() {
+    if (!state.modalTarget) return;
+    var txt = document.getElementById('modalMessageText').value;
+    if (navigator.clipboard) navigator.clipboard.writeText(txt);
+    var key = state.modalTarget.personKey;
+    closeModal('msgModal');
+    recordSentAction(key);
+    showPopup('コピー＆送信記録完了', '文面をコピーし、対応履歴を記録しました。');
+  };
+
+  function setupDragAndDrop() {
+    var dz = document.getElementById('dropZone');
+    if (!dz) return;
+    dz.addEventListener('dragover', function(e) { e.preventDefault(); dz.classList.add('border-orange-500', 'bg-orange-50'); });
+    dz.addEventListener('dragleave', function() { dz.classList.remove('border-orange-500', 'bg-orange-50'); });
+    dz.addEventListener('drop', function(e) {
+      e.preventDefault();
+      dz.classList.remove('border-orange-500', 'bg-orange-50');
+      var file = e.dataTransfer.files[0];
+      if (file) readCsvFile(file);
+    });
+  }
+
+  window.handleCsvFileSelect = function(e) {
+    var file = e.target.files[0];
+    if (file) readCsvFile(file);
+    e.target.value = '';
+  };
+
+  function readCsvFile(file) {
+    var reader = new FileReader();
+    reader.onload = function(evt) {
+      var buf = evt.target.result;
+      var text = new TextDecoder('utf-8').decode(buf);
+      if (text.indexOf(String.fromCharCode(65533)) !== -1) text = new TextDecoder('shift-jis').decode(buf);
+      var rows = parseCsvRows(text);
+      if (rows.length < 2) { alert('CSVデータが正しく読み込めませんでした。'); return; }
+
+      var headers = rows[0].map(function(h) { return String(h || '').trim(); });
+      state.csvHeaders = headers;
+
+      var candidates = rows.slice(1).filter(function(r) {
+        return r.some(function(cell) { return String(cell || '').trim() !== ''; });
+      }).map(function(r, idx) {
+        var rawRow = {};
+        headers.forEach(function(h, i) {
+          var val = r[i] !== undefined ? String(r[i]).trim() : '';
+          if (val !== '') rawRow[h || ('列' + (i + 1))] = val;
+        });
+
+        var pick = function(keys) {
+          for (var i = 0; i < keys.length; i++) {
+            var k = keys[i];
+            if (rawRow[k]) return rawRow[k];
+            var foundKey = headers.find(function(h) { return h.indexOf(k) !== -1; });
+            if (foundKey && rawRow[foundKey]) return rawRow[foundKey];
+          }
+          return '';
+        };
+
+        // B列（2列目・インデックス1）を最終ステータスとして最優先取得
+        var colBVal = (r[1] !== undefined) ? String(r[1]).trim() : '';
+        var finalStVal = colBVal || pick(['最終ステータス']);
+
+        var sei = pick(['姓']);
+        var mei = pick(['名']);
+        var fullName = pick(['氏名', '名前', '求職者名']) || (sei && mei ? sei + ' ' + mei : sei);
+
+        return {
+          id: pick(['応募者ID', '求職者ID', 'ID']) || ('ROW-' + (idx + 1)),
+          name: fullName,
+          kana: pick(['フリガナ', 'カナ', 'セイ']),
+          phone: pick(['電話番号', '携帯番号', 'TEL', '電話']),
+          dob: pick(['生年月日']),
+          age: pick(['年齢']),
+          address: pick(['住所', '現住所', '市区町村']),
+          pref: pick(['都道府県']),
+          branch: pick(['担当支店', '支店', 'エリア']),
+          staff: pick(['アテンド担当ユーザー', '担当者', '担当']),
+          qualification: pick(['保有資格', '資格']),
+          jobType: pick(['職種', '希望職種']) || '介護',
+          status: pick(['ステータス', '応募ステータス', '進捗']),
+          finalStatus: finalStVal,
+          applyDate: pick(['応募日', '応募日時']),
+          attendDate: pick(['アテンド日', 'アテンド日時', '面談日']),
+          contactDate: pick(['接触日時', '最終接触日', '連絡日']),
+          startDate: pick(['就業開始希望日', '就業可能時期', '開始希望日']),
+          conditions: pick(['把握済条件', '備考', 'メモ', '希望条件']),
+          rawRow: rawRow
+        };
+      });
+
+      try { localStorage.setItem(STORAGE_KEYS.CANDIDATE_CACHE, JSON.stringify({ headers: headers, candidates: candidates })); } catch (e) {}
+
+      processCandidates(candidates, 'CSV読込済 (全' + headers.length + '列・B列参照)');
+      closeModal('csvModal');
+      showPopup('インポート完了！', 'ファイル名：' + file.name + LF + '全 ' + headers.length + ' 列・' + candidates.length + ' 件を読み込みました（B列＝最終ステータス参照）。' + LF + '（稼働・職見・内定待ち自動除外：' + state.autoExcludedCount + '件 ／ 名寄せ統合：' + state.mergedDupCount + '件）');
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function parseCsvRows(text) {
+    var rows = [], row = [], cell = '', inQuotes = false;
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i], next = text[i + 1];
+      if (inQuotes) {
+        if (ch === DQ && next === DQ) { cell += DQ; i++; }
+        else if (ch === DQ) { inQuotes = false; }
+        else { cell += ch; }
+      } else {
+        if (ch === DQ) { inQuotes = true; }
+        else if (ch === ',') { row.push(cell); cell = ''; }
+        else if (ch === CR && next === LF) { row.push(cell); rows.push(row); row = []; cell = ''; i++; }
+        else if (ch === LF || ch === CR) { row.push(cell); rows.push(row); row = []; cell = ''; }
+        else { cell += ch; }
+      }
+    }
+    if (cell.length > 0 || row.length > 0) { row.push(cell); rows.push(row); }
+    return rows;
+  }
+
+  window.resetToDemoData = function() {
+    localStorage.removeItem(STORAGE_KEYS.CANDIDATE_CACHE);
+    closeModal('csvModal');
+    loadInitialData();
+    showPopup('デモデータに戻しました', '初期サンプルデータ表示に戻りました。');
+  };
+
+  window.clearActionHistory = function() {
+    if (!confirm('送信履歴・翌日リマインド・30日クールダウン履歴をリセットしますか？')) return;
+    state.actionLogs = {};
+    saveActionLogs();
+    renderList();
+    showPopup('履歴をリセットしました', 'すべての送信・クールダウン履歴を初期化しました。');
+  };
+
+  function getExportTargetList() {
+    var checkedRadio = document.querySelector('input[name="exportScope"]:checked');
+    var scope = checkedRadio ? checkedRadio.value : 'current';
+    var unactedEl = document.getElementById('exportUnactedOnly');
+    var unactedOnly = unactedEl ? unactedEl.checked : true;
+    if (scope === 'current') return getFilteredCandidates({ unactedOnly: unactedOnly });
+    if (scope === 'tabAll') return getFilteredCandidates({ unactedOnly: unactedOnly, ignoreFilters: true });
+    return getFilteredCandidates({ tab: '', unactedOnly: unactedOnly, ignoreFilters: true });
+  }
+
+  window.updateExportPreview = function() {
+    var list = getExportTargetList();
+    document.getElementById('exportTargetCountBadge').textContent = '対象: ' + list.length + '件';
+    var tbody = document.getElementById('exportPreviewBody');
+    var tabNames = { within3days: '3日以内未FIX', unfixed: '未FIX人材', hot: '激熱掘起', future: '未来人材', normal: '通常掘起' };
+    tbody.innerHTML = list.slice(0, 3).map(function(c) {
+      var sal = extractSafeSalutation(c);
+      var act = getActionState(c);
+      var jobs = getMatchedJobs(c);
+      var boSummary = jobs.dispatch.map(function(j) { return j.name + '(' + (j.address || '') + ')'; }).join(' / ');
+      return '<tr><td class="px-2.5 py-1.5 font-bold text-orange-600 whitespace-nowrap">' + (tabNames[c.assignedTab] || c.assignedTab) + '</td><td class="px-2.5 py-1.5 whitespace-nowrap">' + escapeHtml(act.label) + '</td><td class="px-2.5 py-1.5 font-bold whitespace-nowrap">' + escapeHtml(c.name) + '</td><td class="px-2.5 py-1.5 whitespace-nowrap">' + escapeHtml(sal.text) + '</td><td class="px-2.5 py-1.5 whitespace-nowrap">' + escapeHtml(c.phone || '-') + '</td><td class="px-2.5 py-1.5 whitespace-nowrap">' + escapeHtml(c.branch || '-') + '</td><td class="px-2.5 py-1.5 max-w-[200px] truncate">' + escapeHtml(boSummary || '-') + '</td></tr>';
+    }).join('') || '<tr><td colspan="7" class="px-3 py-4 text-center text-gray-400">出力対象データがありません</td></tr>';
+  };
+
+  window.quickExportCurrent = function() {
+    downloadCsvFromList(getFilteredCandidates(), false);
+  };
+
+  window.executeCsvExport = function() {
+    var list = getExportTargetList();
+    var includeRaw = document.getElementById('exportIncludeRaw').checked;
+    closeModal('exportModal');
+    downloadCsvFromList(list, includeRaw);
+  };
+
+  function downloadCsvFromList(list, includeRaw) {
+    if (!list || list.length === 0) { alert('出力対象のデータが0件です。'); return; }
+    var tabNames = { within3days: '3日以内未FIX', unfixed: '未FIX人材', hot: '激熱掘起', future: '未来人材', normal: '通常掘起' };
+    var baseHeaders = ['追客区分', '対応状況', '氏名', '宛名', '電話番号', '担当支店', 'アテンド担当', '職種', '保有資格', 'B列_最終ステータス', '就業開始希望日', '生成済み送信文面', '候補BO1_施設名', '候補BO1_住所', '候補BO2_施設名', '候補BO2_住所', '候補BO3_施設名', '候補BO3_住所', '紹介特別フック_施設名', '紹介特別フック_住所', '応募者ID'];
+    var rawHeaders = includeRaw ? state.csvHeaders : [];
+    var allHeaders = baseHeaders.concat(rawHeaders);
+    var csvLines = [allHeaders.map(csvEscape).join(',')];
+
+    list.forEach(function(c) {
+      var sal = extractSafeSalutation(c);
+      var act = getActionState(c);
+      var jobs = getMatchedJobs(c);
+      var msg = buildMessageForCandidate(c);
+      var d0 = jobs.dispatch[0] || {}, d1 = jobs.dispatch[1] || {}, d2 = jobs.dispatch[2] || {}, dir0 = jobs.direct[0] || {};
+      var row = [tabNames[c.assignedTab] || c.assignedTab, act.label, c.name || '', sal.text, c.phone || '', c.branch || '', c.staff || '', c.jobType || '', c.qualification || '', getColBFinalStatus(c), c.startDate || '', msg, d0.name || '', d0.address || '', d1.name || '', d1.address || '', d2.name || '', d2.address || '', dir0.name || '', dir0.address || '', c.id || ''];
+      if (includeRaw) {
+        rawHeaders.forEach(function(h) { row.push((c.rawRow && c.rawRow[h] !== undefined) ? c.rawRow[h] : ''); });
+      }
+      csvLines.push(row.map(csvEscape).join(','));
+    });
+
+    var bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+    var blob = new Blob([bom, csvLines.join(CRLF)], { type: 'text/csv;charset=utf-8;' });
+    var dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    var areaLabel = state.currentArea === 'kanto' ? '関東' : '全エリア';
+    var tabLabel = tabNames[state.currentTab] || '追客';
+    var fileName = '追客リスト_' + areaLabel + '_' + tabLabel + '_' + list.length + '件_' + dateStr + '.csv';
+    triggerDownload(blob, fileName);
+    showPopup('エクスポート完了！', 'ファイル名：' + fileName + LF + '対象 ' + list.length + ' 件をExcel対応CSVとしてダウンロードしました。');
+  }
+
+  function csvEscape(val) {
+    var s = String(val === undefined || val === null ? '' : val);
+    return DQ + s.split(DQ).join(DQ + DQ) + DQ;
+  }
+
+  function triggerDownload(blob, filename) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function buildDataJsContent() {
+    var compactCandidates = state.rawCandidates.map(function(c) {
+      var cleanRaw = {};
+      if (c.rawRow) {
+        Object.keys(c.rawRow).forEach(function(k) {
+          if (c.rawRow[k] !== '' && c.rawRow[k] !== null && c.rawRow[k] !== undefined) {
+            cleanRaw[k] = c.rawRow[k];
+          }
+        });
+      }
+      var copy = Object.assign({}, c, { rawRow: cleanRaw });
+      Object.keys(copy).forEach(function(k) {
+        if (copy[k] === '' || copy[k] === null || copy[k] === undefined) delete copy[k];
+      });
+      return copy;
+    });
+
+    var payload = {
+      updatedAt: new Date().toLocaleString('ja-JP'),
+      sourceLabel: '外部 data.js (' + new Date().toLocaleDateString('ja-JP') + '更新・全' + state.csvHeaders.length + '列)',
+      headers: state.csvHeaders,
+      demoCandidates: compactCandidates,
+      dispatchJobs: state.dispatchJobs,
+      directJobs: state.directJobs,
+      slideReasons: state.slideReasons
+    };
+    return 'window.BSTYLE_APP_DATA=' + JSON.stringify(payload) + ';' + LF;
+  }
+
+  window.exportDataJsFile = function() {
+    var content = buildDataJsContent();
+    var blob = new Blob([content], { type: 'application/javascript;charset=utf-8;' });
+    triggerDownload(blob, 'data.js');
+    closeModal('csvModal');
+    showPopup('data.js エクスポート完了！', '全 ' + state.rawCandidates.length + ' 件（全' + state.csvHeaders.length + '列）を軽量圧縮した data.js をダウンロードしました。');
+  };
+
+  window.saveGithubConfig = function() {
+    state.settings.ghRepo = document.getElementById('ghRepoInput').value.trim();
+    state.settings.ghBranch = document.getElementById('ghBranchInput').value.trim() || 'main';
+    state.settings.ghPath = document.getElementById('ghPathInput').value.trim() || 'data.js';
+    state.settings.ghToken = document.getElementById('ghTokenInput').value.trim();
+    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(state.settings));
+    showPopup('GitHub設定を保存しました', 'リポジトリ・トークン設定をお使いのブラウザに保存しました。');
+  };
+
+  window.pushDataJsToGithub = async function() {
+    saveGithubConfig();
+    var ghRepo = state.settings.ghRepo, ghBranch = state.settings.ghBranch, ghPath = state.settings.ghPath, ghToken = state.settings.ghToken;
+    if (!ghRepo || !ghToken) { alert('GitHub リポジトリ名と Personal Access Token を入力してください。'); return; }
+    var btn = document.getElementById('ghPushBtn');
+    var origText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '⏳ 大容量データ送信中（1/4）...';
+
+    var headers = {
+      'Authorization': 'Bearer ' + ghToken,
+      'Accept': 'application/vnd.github+json',
+      'Content-Type': 'application/json'
     };
 
-    const KANTO_PREFS = ["東京都", "神奈川県", "埼玉県", "千葉県", "茨城県", "栃木県", "群馬県"];
-    const KANSAI_PREFS = ["大阪府", "兵庫県", "京都府", "滋賀県", "奈良県", "和歌山県"];
+    try {
+      var baseApi = 'https://api.github.com/repos/' + ghRepo;
 
-    function normalizeTownStr(str) {
-      if (!str) return "";
-      let s = str.replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
-      s = s.replace(/ヶ/g, "ケ").replace(/之/g, "ノ").replace(/ッ/g, "ツ");
-      const numMap = {"1":"一","2":"二","3":"三","4":"四","5":"五","6":"六","7":"七","8":"八","9":"九","10":"十"};
-      s = s.replace(/(\d+)丁目/g, (_, d) => (numMap[d] || d) + "丁目");
-      return s;
-    }
-
-    function lookupCoordsFromDict(pref, city, address) {
-      if (!pref || !TOWN_COORDS_DICT[pref]) return null;
-      const prefObj = TOWN_COORDS_DICT[pref];
-      const sortedCityKeys = Object.keys(prefObj).sort((a, b) => b.length - a.length);
-      let cityKey = null;
-
-      if (city && prefObj[city]) {
-        cityKey = city;
-      } else if (city) {
-        const cleanCity = city.replace(/^.*郡/, "");
-        for (const k of sortedCityKeys) {
-          const shortK = k.replace(/^.*郡/, "");
-          if (k === city || shortK === cleanCity || (cleanCity.length >= 2 && k.endsWith(cleanCity))) {
-            cityKey = k;
-            break;
-          }
-        }
+      var refRes = await fetch(baseApi + '/git/ref/heads/' + encodeURIComponent(ghBranch), { headers: headers });
+      if (!refRes.ok) {
+        var errRef = await refRes.json().catch(function() { return {}; });
+        throw new Error('ブランチ取得エラー: ' + (errRef.message || refRes.status));
       }
+      var refData = await refRes.json();
+      var latestCommitSha = refData.object.sha;
 
-      if (!cityKey && address) {
-        for (const k of sortedCityKeys) {
-          const shortK = k.replace(/^.*郡/, "");
-          if (address.includes(k) || (shortK.length >= 2 && address.includes(shortK))) {
-            cityKey = k;
-            break;
-          }
-        }
-      }
+      btn.textContent = '⏳ ツリー情報取得中（2/4）...';
+      var commitRes = await fetch(baseApi + '/git/commits/' + latestCommitSha, { headers: headers });
+      var commitData = await commitRes.json();
+      var baseTreeSha = commitData.tree.sha;
 
-      if (!cityKey) return null;
-      const townsObj = prefObj[cityKey];
-      const townKeys = Object.keys(townsObj).sort((a, b) => b.length - a.length);
+      btn.textContent = '⏳ data.js アップロード中（3/4）...';
+      var contentStr = buildDataJsContent();
+      var base64Str = utf8ToBase64(contentStr);
+      var sizeKb = Math.round(base64Str.length * 0.75 / 1024);
 
-      let addrBody = (address || "").replace(pref, "").replace(cityKey, "").replace(city || "", "");
-      const normAddr = normalizeTownStr(addrBody);
-
-      // 1. 完全部分一致（正規化含む）
-      for (const t of townKeys) {
-        const normT = normalizeTownStr(t);
-        if (addrBody.includes(t) || normAddr.includes(normT)) {
-          return { lat: townsObj[t][0], lng: townsObj[t][1], matchedTown: `${pref}${cityKey}${t}` };
-        }
-      }
-
-      // 2. 「大字」「字」を除いた町名での一致
-      for (const t of townKeys) {
-        const strippedT = t.replace(/^(大字|字)/, "");
-        if (strippedT.length >= 2) {
-          const normStripped = normalizeTownStr(strippedT);
-          if (addrBody.includes(strippedT) || normAddr.includes(normStripped)) {
-            return { lat: townsObj[t][0], lng: townsObj[t][1], matchedTown: `${pref}${cityKey}${t}` };
-          }
-        }
-      }
-
-      // 3. 市区町村内の重心座標フォールバック
-      if (townKeys.length > 0) {
-        let sumLat = 0, sumLng = 0;
-        for (const t of townKeys) {
-          sumLat += townsObj[t][0];
-          sumLng += townsObj[t][1];
-        }
-        return {
-          lat: Number((sumLat / townKeys.length).toFixed(5)),
-          lng: Number((sumLng / townKeys.length).toFixed(5)),
-          matchedTown: `${pref}${cityKey}（市区町村中心）`
-        };
-      }
-      return null;
-    }
-
-    let allJobs = [];
-    let filteredJobs = [];
-    let selectedJobIds = new Set();
-    let expandedNoteIds = new Set();
-    let baseCoords = null;
-    let currentRegion = "all";
-    let currentJobType = "all";
-    let currentPref = "all";
-    let activeEmpTypes = new Set(["派遣", "紹介予定派遣"]);
-    let activeShifts = new Set();
-    let activeFacilityTypes = new Set();
-    let displayLimit = 100;
-
-    // 高精度マージ用：施設名・住所・番地・ビル名・漢数字・カタカナ・記号の表記ゆれを完全正規化
-    function normalizeFacilityKey(str) {
-      let s = String(str || "")
-        .normalize("NFKC") // 全角英数字・半角カナ・記号を統一
-        .replace(/[\s　・･．.（）()【】\[\]「」『』<>＜＞\-－―ー−_＿/／]+/g, "")
-        .replace(/ヶ/g, "ケ")
-        .replace(/之/g, "ノ")
-        .replace(/ッ/g, "ツ")
-        .replace(/（ユニット型）|\(ユニット型\)|ユニット型|（従来型）|\(従来型\)|従来型/g, "");
-      // 法人格の表記ゆれ統一
-      s = s.replace(/株式会社|\(株\)|（株）|有限会社|\(有\)|（有）|社会福祉法人|\(福\)|（福）|医療法人社団|医療法人財団|医療法人|\(医\)|（医）|一般社団法人|合同会社/g, "");
-      return s.toLowerCase();
-    }
-
-    function normalizeAddressKey(str) {
-      let s = String(str || "")
-        .normalize("NFKC")
-        .replace(/[\s　]+/g, "")
-        .replace(/ヶ/g, "ケ")
-        .replace(/之/g, "ノ")
-        .replace(/ッ/g, "ツ")
-        .replace(/[‐‑‒–—―ー−]/g, "-");
-
-      // 漢数字の丁目・番地を半角アラビア数字へ統一（例: 一丁目2番3号 -> 1-2-3）
-      const kanjiDigitMap = { "〇":"0", "一":"1", "二":"2", "三":"3", "四":"4", "五":"5", "六":"6", "七":"7", "八":"8", "九":"9" };
-      s = s.replace(/十([一二三四五六七八九])/g, (_, d) => "1" + kanjiDigitMap[d]);
-      s = s.replace(/([二三四五六七八九])十([一二三四五六七八九])/g, (_, d1, d2) => kanjiDigitMap[d1] + kanjiDigitMap[d2]);
-      s = s.replace(/([二三四五六七八九])十/g, (_, d) => kanjiDigitMap[d] + "0");
-      s = s.replace(/十/g, "10");
-      s = s.replace(/[〇一二三四五六七八九]/g, ch => kanjiDigitMap[ch] || ch);
-
-      // 「1丁目2番地3号」や「1丁目2-3」を「1-2-3」に統一
-      s = s.replace(/(\d+)丁目(\d+)番地?(\d+)号?/g, "$1-$2-$3");
-      s = s.replace(/(\d+)丁目(\d+)番地?/g, "$1-$2");
-      s = s.replace(/(\d+)丁目/g, "$1-");
-      s = s.replace(/(\d+)番地?(\d+)号?/g, "$1-$2");
-      s = s.replace(/(\d+)番地?/g, "$1");
-      s = s.replace(/(\d+)号/g, "$1");
-      s = s.replace(/--+/g, "-").replace(/-$/, "");
-
-      // 建物名・階数などの後ろに付くノイズの軽微なゆれ（1F / 1階）を統一
-      s = s.replace(/(\d+)階/g, "$1f");
-      return s.toLowerCase();
-    }
-
-    function extractCoreBanchi(normAddr) {
-      // 都道府県＋市区町村＋町名＋主要番地（例: 神奈川県茅ケ崎市甘沼865-1）を抽出（後ろに建物名がくっついている場合の照合用）
-      const m = normAddr.match(/^(.+?[都道府県].+?[市区町村郡].*?\d+(?:-\d+)*)/);
-      return m ? m[1] : normAddr;
-    }
-
-    function normalizeKeyStr(str) {
-      return normalizeFacilityKey(str);
-    }
-
-    function mergeDuplicateJobs(jobs) {
-      const map = new Map();
-      // 同一店舗・同一番地で建物名有無だけが異なるケースも捕捉する補助インデックス
-      const coreIndex = new Map();
-
-      jobs.forEach((job) => {
-        const normFacility = normalizeFacilityKey(job.facility);
-        const fullAddr = formatFullAddress(job);
-        const normAddr = normalizeAddressKey(fullAddr);
-        const coreAddr = extractCoreBanchi(normAddr);
-        const normJobType = normalizeJobType(job.jobType);
-        const normEmpType = normalizeEmpType(job.empType, "");
-
-        // 施設名 + 住所 + 職種(介護/看護) + 雇用形態(派遣/紹介予定派遣/紹介) の4要素が一致するものを同一区分とする
-        let key = `${normFacility}__${normAddr}__${normJobType}__${normEmpType}`;
-        const coreKey = `${normFacility}__${coreAddr}__${normJobType}__${normEmpType}`;
-
-        // 建物名有無だけの違い（例: 「関口1-14-12」と「関口1-14-12介護付き有料老人ホーム〜」）も同一案件として統合
-        if (!map.has(key) && coreAddr && coreIndex.has(coreKey)) {
-          key = coreIndex.get(coreKey);
-        }
-
-        // 過去に別の区分と合体していた古い備考（\n---\n区切り）が含まれる場合は、先頭（当該区分自身）のみを使用
-        const cleanRawNote = String(job.notes || "").split(/\n---\n/)[0].trim();
-
-        if (!map.has(key)) {
-          map.set(key, {
-            ...job,
-            jobType: normJobType,
-            empType: normEmpType,
-            empTypes: [normEmpType],
-            shifts: Array.isArray(job.shifts) ? [...job.shifts] : [],
-            notes: cleanRawNote,
-            notesList: cleanRawNote ? [cleanRawNote] : []
-          });
-          if (coreAddr && !coreIndex.has(coreKey)) {
-            coreIndex.set(coreKey, key);
-          }
-        } else {
-          const existing = map.get(key);
-
-          // 同じ区分の中で、より新しいBO取得日時のレコードが来たら、日時・備考・シフトを最新のものに完全更新する
-          if ((job.timestamp || 0) > (existing.timestamp || 0)) {
-            existing.timestamp = job.timestamp;
-            existing.date = job.date;
-            existing.notes = cleanRawNote;
-            existing.notesList = cleanRawNote ? [cleanRawNote] : [];
-            existing.shifts = Array.isArray(job.shifts) ? [...job.shifts] : [];
-            // より正式な施設名・正確な住所があれば更新
-            if (job.facility && job.facility.length >= (existing.facility || "").length) {
-              existing.facility = job.facility;
-            }
-          } else if ((job.timestamp || 0) === (existing.timestamp || 0)) {
-            // 同じBO取得日時の同一区分レコードが複数行ある場合のみ備考・シフトを重複なくマージ
-            if (cleanRawNote && !existing.notesList.includes(cleanRawNote)) {
-              existing.notesList.push(cleanRawNote);
-              existing.notes = existing.notesList.join("\n");
-            }
-            (job.shifts || []).forEach(s => {
-              if (s && !existing.shifts.includes(s)) existing.shifts.push(s);
-            });
-          }
-
-          // 座標が未設定なら補完
-          if (existing.lat == null && job.lat != null) {
-            existing.lat = job.lat;
-            existing.lng = job.lng;
-            existing.matchedTown = job.matchedTown;
-          }
-
-          // 施設形態が「一般」なら具体的な方を採用
-          if ((!existing.facilityType || existing.facilityType === "一般") && job.facilityType && job.facilityType !== "一般") {
-            existing.facilityType = job.facilityType;
-          }
-
-          // 住所に施設名が誤って連結されている短い方（綺麗な住所）があればそちらを採用
-          const curFull = formatFullAddress(existing);
-          const newFull = formatFullAddress(job);
-          if (newFull && curFull && newFull.length >= 8 && newFull.length < curFull.length && curFull.startsWith(newFull)) {
-            existing.pref = job.pref;
-            existing.city = job.city;
-            existing.address = job.address;
-          }
-        }
+      var blobRes = await fetch(baseApi + '/git/blobs', {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({ content: base64Str, encoding: 'base64' })
       });
+      if (!blobRes.ok) {
+        var errBlob = await blobRes.json().catch(function() { return {}; });
+        throw new Error('Blob作成エラー: ' + (errBlob.message || blobRes.status));
+      }
+      var blobData = await blobRes.json();
 
-      return Array.from(map.values()).map((item, idx) => {
-        const { notesList, ...rest } = item;
-        return {
-          ...rest,
-          id: `job_${idx}`
-        };
+      btn.textContent = '⏳ コミット反映中（4/4）...';
+      var treeRes = await fetch(baseApi + '/git/trees', {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({
+          base_tree: baseTreeSha,
+          tree: [{ path: ghPath, mode: '100644', type: 'blob', sha: blobData.sha }]
+        })
       });
-    }
+      var treeData = await treeRes.json();
 
-    // IndexedDB 高速ローカルキャッシュ（数MBのJSONを毎回再ダウンロード・再計算しない）
-    const IDB_NAME = "searchOrderCacheDB";
-    const IDB_STORE = "kv";
-    function idbGet(key) {
-      return new Promise(resolve => {
-        try {
-          const req = indexedDB.open(IDB_NAME, 1);
-          req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
-          req.onsuccess = () => {
-            const tx = req.result.transaction(IDB_STORE, "readonly");
-            const g = tx.objectStore(IDB_STORE).get(key);
-            g.onsuccess = () => resolve(g.result || null);
-            g.onerror = () => resolve(null);
-          };
-          req.onerror = () => resolve(null);
-        } catch (e) { resolve(null); }
+      var newCommitRes = await fetch(baseApi + '/git/commits', {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({
+          message: 'Update ' + ghPath + ' (' + state.rawCandidates.length + '件 / ' + sizeKb + 'KB)',
+          tree: treeData.sha,
+          parents: [latestCommitSha]
+        })
       });
-    }
-    function idbSet(key, val) {
-      return new Promise(resolve => {
-        try {
-          const req = indexedDB.open(IDB_NAME, 1);
-          req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
-          req.onsuccess = () => {
-            const tx = req.result.transaction(IDB_STORE, "readwrite");
-            tx.objectStore(IDB_STORE).put(val, key);
-            tx.oncomplete = () => resolve(true);
-            tx.onerror = () => resolve(false);
-          };
-          req.onerror = () => resolve(false);
-        } catch (e) { resolve(false); }
+      var newCommitData = await newCommitRes.json();
+
+      var patchRefRes = await fetch(baseApi + '/git/refs/heads/' + encodeURIComponent(ghBranch), {
+        method: 'PATCH',
+        headers: headers,
+        body: JSON.stringify({ sha: newCommitData.sha })
       });
-    }
+      if (!patchRefRes.ok) {
+        var errPatch = await patchRefRes.json().catch(function() { return {}; });
+        throw new Error('ブランチ更新エラー: ' + (errPatch.message || patchRefRes.status));
+      }
 
-    let dictLoadedPromise = null;
-    async function ensureCoordsDictLoaded() {
-      if (Object.keys(TOWN_COORDS_DICT).length > 0) return TOWN_COORDS_DICT;
-      if (dictLoadedPromise) return dictLoadedPromise;
-      dictLoadedPromise = (async () => {
-        try {
-          const cachedDict = await idbGet("coords_dict_cache");
-          if (cachedDict && cachedDict.data) {
-            TOWN_COORDS_DICT = cachedDict.data;
-          }
-          const headRes = await fetch("./coords_dict.json", { method: "HEAD", cache: "no-cache" }).catch(() => null);
-          const remoteTag = headRes ? (headRes.headers.get("etag") || headRes.headers.get("last-modified") || "") : "";
-          if (!cachedDict || !cachedDict.data || (remoteTag && cachedDict.tag !== remoteTag)) {
-            const dictRes = await fetch("./coords_dict.json", { cache: "no-cache" }).catch(() => null);
-            if (dictRes && dictRes.ok) {
-              TOWN_COORDS_DICT = await dictRes.json();
-              const newTag = dictRes.headers.get("etag") || dictRes.headers.get("last-modified") || remoteTag;
-              await idbSet("coords_dict_cache", { tag: newTag, data: TOWN_COORDS_DICT });
-            }
-          }
-          const prefCount = Object.keys(TOWN_COORDS_DICT).length;
-          const badge = document.getElementById("dictStatusBadge");
-          if (badge) badge.innerHTML = `<i class="fa-solid fa-location-crosshairs"></i> 町丁目高精度座標内蔵 (${prefCount}都道府県)`;
-          renderDictCoverage();
-        } catch (e) {
-          console.warn("座標辞書ロードエラー:", e);
+      closeModal('githubModal');
+      showPopup('🚀 GitHub自動反映が完了しました！', 'リポジトリ：' + ghRepo + ' (' + ghBranch + ')' + LF + '更新ファイル：' + ghPath + '（' + state.rawCandidates.length + '件 / 約' + sizeKb + 'KB）' + LF + '約30秒〜1分で公開ページに最新データが自動反映されます。');
+    } catch (err) {
+      alert('GitHubへの自動反映に失敗しました：' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = origText;
+    }
+  };
+
+  window.saveAndLoadExternalDataUrl = function() {
+    var url = document.getElementById('externalDataUrlInput').value.trim();
+    state.settings.externalDataUrl = url;
+    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(state.settings));
+    if (!url) return;
+    if (url.slice(-3) === '.js') {
+      var s = document.createElement('script');
+      s.src = url + (url.indexOf('?') !== -1 ? AMP : '?') + 't=' + Date.now();
+      s.onload = function() {
+        if (window.BSTYLE_APP_DATA && window.BSTYLE_APP_DATA.demoCandidates) {
+          state.csvHeaders = window.BSTYLE_APP_DATA.headers || [];
+          processCandidates(window.BSTYLE_APP_DATA.demoCandidates, '外部URL data.js 同期済');
+          closeModal('urlModal');
+          showPopup('外部データ読込完了', url + ' から最新データを読み込みました。');
         }
-        return TOWN_COORDS_DICT;
-      })();
-      return dictLoadedPromise;
-    }
-
-    function prepareJobsFast(rawJobs) {
-      // jobs.json に既に id / lat / lng / timestamp / shifts が入っている場合は高速パスを通す
-      const isAlreadyMerged = rawJobs.length > 0 && rawJobs[0].timestamp !== undefined && rawJobs[0].empTypes !== undefined;
-      if (isAlreadyMerged) {
-        return rawJobs.map((j, idx) => ({
-          ...j,
-          id: j.id || `job_${idx}`,
-          _boDateText: formatBoDateDisplay(j.date, j.timestamp),
-          _fullAddr: formatFullAddress(j),
-          _cleanNotes: extractCandidateNotes(j.notes)
-        }));
-      }
-      const enriched = rawJobs.map((j, idx) => enrichJobData(j, idx));
-      const merged = mergeDuplicateJobs(enriched);
-      return merged.map(j => ({
-        ...j,
-        _boDateText: formatBoDateDisplay(j.date, j.timestamp),
-        _fullAddr: formatFullAddress(j),
-        _cleanNotes: extractCandidateNotes(j.notes)
-      }));
-    }
-
-    async function initApp() {
-      loadGithubConfigToForm();
-      try {
-        // 1. まずローカルキャッシュ（IndexedDB）から即座に0.1秒で画面描画
-        const cachedJobs = await idbGet("jobs_cache_v1");
-        if (cachedJobs && Array.isArray(cachedJobs.jobs) && cachedJobs.jobs.length > 0) {
-          allJobs = cachedJobs.jobs;
-          updateHeaderCounts();
-          renderPrefPills();
-          applyFilters();
-        }
-
-        // 2. バックグラウンドで jobs.json の更新チェック（変更時のみ再取得＆再計算）
-        const headRes = await fetch("./jobs.json", { method: "HEAD", cache: "no-cache" }).catch(() => null);
-        const remoteTag = headRes ? (headRes.headers.get("etag") || headRes.headers.get("last-modified") || "") : "";
-
-        if (!cachedJobs || !cachedJobs.jobs || (remoteTag && cachedJobs.tag !== remoteTag) || !remoteTag) {
-          const jobsRes = await fetch("./jobs.json", { cache: "no-cache" }).catch(() => null);
-          if (jobsRes && jobsRes.ok) {
-            const rawJobs = await jobsRes.json();
-            const needDict = rawJobs.some(j => j.lat == null || j.lng == null);
-            if (needDict) {
-              await ensureCoordsDictLoaded();
-            }
-            allJobs = prepareJobsFast(rawJobs);
-            const newTag = jobsRes.headers.get("etag") || jobsRes.headers.get("last-modified") || remoteTag;
-            await idbSet("jobs_cache_v1", { tag: newTag, jobs: allJobs });
-            updateHeaderCounts();
-            renderPrefPills();
-            applyFilters();
-          }
-        }
-
-        // 3. 座標辞書は初期表示完了後にバックグラウンドで遅延ロード（画面表示をブロックしない）
-        setTimeout(() => { ensureCoordsDictLoaded(); }, 800);
-      } catch (e) {
-        console.error("データ読込エラー:", e);
-      }
-
-      renderDictCoverage();
-      updateHeaderCounts();
-      renderPrefPills();
-      applyFilters();
-    }
-
-    function normalizeJobType(rawJobType) {
-      const s = String(rawJobType || "").trim();
-      if (s.includes("看護")) return "看護";
-      if (s.includes("介護")) return "介護";
-      return s || "その他";
-    }
-
-    function normalizeEmpType(rawEmpType, notes) {
-      let s = String(rawEmpType || "").trim();
-      if (!s && notes) {
-        const m = String(notes).match(/【(?:就業形態|取引種別)】\s*([^\n\r【]+)/);
-        if (m) s = m[1].trim();
-      }
-      if (!s && notes) {
-        const n = String(notes);
-        if (/紹介予定派遣|\bTTP\b/i.test(n)) return "紹介予定派遣";
-        if (/紹介のみ|正社員採用|正社員紹介|常勤のみ|パート紹介/.test(n)) return "紹介";
-      }
-      if (!s) return "派遣";
-      if (s.includes("紹介予定") || /TTP/i.test(s)) return "紹介予定派遣";
-      if (s.includes("派遣")) return "派遣";
-      if (s.includes("紹介") || s.includes("正社員") || s.includes("パート") || s.includes("契約社員") || s.includes("直接")) return "紹介";
-      return s;
-    }
-
-    function enrichJobData(j, idx) {
-      let lat = j.lat;
-      let lng = j.lng;
-      let matchedTown = j.matchedTown || "";
-
-      if (lat == null || lng == null || isNaN(lat) || isNaN(lng)) {
-        const found = lookupCoordsFromDict(j.pref, j.city, j.address);
-        if (found) {
-          lat = found.lat;
-          lng = found.lng;
-          matchedTown = found.matchedTown;
-        } else if (j.pref && PREF_COORDS[j.pref]) {
-          lat = PREF_COORDS[j.pref][0];
-          lng = PREF_COORDS[j.pref][1];
-        }
-      }
-
-      const ts = parseJapaneseDate(j.date);
-
-      const shiftsSet = new Set(Array.isArray(j.shifts) ? j.shifts : []);
-      const combinedText = `${j.facility || ""} ${j.notes || ""}`;
-      if (/早番|早出|早[0-9０-９]/.test(combinedText)) shiftsSet.add("早出");
-      if (/日勤/.test(combinedText)) shiftsSet.add("日勤");
-      if (/遅番|遅出|遅[0-9０-９]/.test(combinedText)) shiftsSet.add("遅出");
-      if (/夜勤/.test(combinedText)) shiftsSet.add("夜勤");
-      if (shiftsSet.size === 0) shiftsSet.add("日勤");
-
-      return {
-        ...j,
-        id: j.id || `job_${idx}`,
-        jobType: normalizeJobType(j.jobType),
-        empType: normalizeEmpType(j.empType, j.notes),
-        lat,
-        lng,
-        matchedTown,
-        timestamp: ts,
-        shifts: Array.from(shiftsSet)
       };
+      s.onerror = function() { alert('外部JSファイルの読み込みに失敗しました。'); };
+      document.head.appendChild(s);
+    } else {
+      fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+        var list = Array.isArray(data) ? data : (data.demoCandidates || data.candidates || []);
+        processCandidates(list, '外部JSON同期済');
+        closeModal('urlModal');
+        showPopup('外部JSON読込完了', list.length + '件を読み込みました。');
+      }).catch(function(e) { alert('外部JSONの読み込みに失敗しました：' + e.message); });
     }
+  };
 
-    function parseJapaneseDate(dateStr) {
-      if (!dateStr) return 0;
-      const m1 = dateStr.match(/(\d{1,2})月\s*(\d{1,2}),\s*(\d{4}),\s*(\d{1,2}):(\d{2})\s*(午前|午後)/);
-      if (m1) {
-        const month = parseInt(m1[1], 10) - 1;
-        const day = parseInt(m1[2], 10);
-        const year = parseInt(m1[3], 10);
-        let hour = parseInt(m1[4], 10);
-        const min = parseInt(m1[5], 10);
-        const ampm = m1[6];
-        if (ampm === "午後" && hour < 12) hour += 12;
-        if (ampm === "午前" && hour === 12) hour = 0;
-        return new Date(year, month, day, hour, min).getTime();
+  window.fetchJobMasterFromUrl = function() {
+    var url = document.getElementById('jobMasterUrlInput').value.trim();
+    state.settings.jobMasterUrl = url;
+    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(state.settings));
+    if (!url) return;
+    fetch(url).then(function(r) { return r.text(); }).then(function(txt) {
+      var data = null;
+      try { data = JSON.parse(txt); } catch (e) {
+        var m = txt.match(/=\s*(\{[\s\S]*\}|\[[\s\S]*\])\s*;?\s*$/);
+        if (m) data = JSON.parse(m[1]);
       }
-      const cleaned = dateStr.replace(/\//g, "-");
-      const parsed = Date.parse(cleaned);
-      return isNaN(parsed) ? 0 : parsed;
-    }
+      if (!data) throw new Error('JSONデータを解析できませんでした');
+      var rawJobs = Array.isArray(data) ? data : (data.dispatchJobs || data.orders || data.jobs || []);
+      applySyncedJobs(rawJobs);
+      closeModal('urlModal');
+      showPopup('案件マスタ同期完了！', 'searchOrder側から ' + rawJobs.length + ' 件の案件（住所・座標）を同期しました。');
+    }).catch(function(err) { alert('案件マスタURLの同期に失敗しました：' + err.message); });
+  };
 
-    function formatBoDateDisplay(dateStr, ts) {
-      let t = ts;
-      if (!t && dateStr) {
-        t = parseJapaneseDate(dateStr);
-      }
-      if (t && t > 0) {
-        const d = new Date(t);
-        const y = d.getFullYear();
-        const m = d.getMonth() + 1;
-        const day = d.getDate();
-        return `${y}/${m}/${day}　BO取得`;
-      }
-      if (!dateStr) return "";
-      const mJp = String(dateStr).match(/(\d{1,2})月\s*(\d{1,2}),\s*(\d{4})/);
-      if (mJp) {
-        return `${mJp[3]}/${parseInt(mJp[1], 10)}/${parseInt(mJp[2], 10)}　BO取得`;
-      }
-      return `${dateStr}　BO取得`;
-    }
+  window.handleJobCsvImport = function(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(evt) {
+      var buf = evt.target.result;
+      var text = new TextDecoder('utf-8').decode(buf);
+      if (text.indexOf(String.fromCharCode(65533)) !== -1) text = new TextDecoder('shift-jis').decode(buf);
+      var rows = parseCsvRows(text);
+      if (rows.length < 2) return;
+      var headers = rows[0].map(function(h) { return String(h || '').trim(); });
+      var jobs = rows.slice(1).filter(function(r) { return r.some(function(c) { return String(c || '').trim() !== ''; }); }).map(function(r, idx) {
+        var obj = {};
+        headers.forEach(function(h, i) { obj[h] = String(r[i] || '').trim(); });
+        var pick = function(keys) {
+          for (var i = 0; i < keys.length; i++) {
+            var k = keys[i];
+            if (obj[k]) return obj[k];
+            var fk = headers.find(function(h) { return h.indexOf(k) !== -1; });
+            if (fk && obj[fk]) return obj[fk];
+          }
+          return '';
+        };
+        return {
+          id: pick(['案件ID', 'BOID', 'ID']) || ('BO-' + (idx + 1)),
+          name: pick(['施設名', '事業所名', '案件名', '法人名']),
+          address: pick(['住所', '勤務地住所', '所在地', '市区町村']),
+          jobType: pick(['職種']) || '介護',
+          distKm: parseFloat(pick(['距離'])) || 1.2,
+          boDate: pick(['BO取得日時', '登録日', '更新日']),
+          wage: pick(['給与', '時給']),
+          shift: pick(['シフト', '勤務時間']),
+          employmentType: pick(['雇用形態'])
+        };
+      });
+      applySyncedJobs(jobs);
+      closeModal('urlModal');
+      showPopup('案件CSVから住所同期完了！', file.name + ' から ' + jobs.length + ' 件の正しい住所・案件データを反映しました。');
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value = '';
+  };
 
-    function calcDistanceKm(lat1, lon1, lat2, lon2) {
-      if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null;
-      const R = 6371;
-      const dLat = (lat2 - lat1) * Math.PI / 180;
-      const dLon = (lon2 - lon1) * Math.PI / 180;
-      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                Math.sin(dLon / 2) * Math.sin(dLon / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      return R * c;
-    }
+  function applySyncedJobs(jobs) {
+    var disp = [], dir = [];
+    jobs.forEach(function(j) {
+      var emp = (j.employmentType || '') + ' ' + (j.name || '');
+      if (emp.indexOf('直接雇用') !== -1 || emp.indexOf('正社員') !== -1 || emp.indexOf('紹介') !== -1) dir.push(j);
+      else disp.push(j);
+    });
+    if (disp.length > 0) state.dispatchJobs = disp;
+    if (dir.length > 0) state.directJobs = dir;
+    try { localStorage.setItem(STORAGE_KEYS.JOB_MASTER_CACHE, JSON.stringify({ dispatchJobs: state.dispatchJobs, directJobs: state.directJobs })); } catch (e) {}
+    renderList();
+  }
 
-    async function executeUnifiedSearch() {
-      const q = document.getElementById("unifiedInput").value.trim();
-      const clearBtn = document.getElementById("clearUnifiedBtn");
-      if (q) clearBtn.classList.remove("hidden");
-      else clearBtn.classList.add("hidden");
+  window.exportHistoryJson = function() {
+    var payload = { exportedAt: new Date().toISOString(), actionLogs: state.actionLogs, excludedMap: state.excludedMap };
+    var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    triggerDownload(blob, 'bstyle_history_backup_' + new Date().toISOString().slice(0, 10) + '.json');
+    showPopup('履歴JSON保存完了', '送信済・30日クールダウン・永続除外リストをJSON保存しました。');
+  };
 
-      if (!q) {
-        baseCoords = null;
-        document.getElementById("baseCoordInfo").classList.add("hidden");
-        applyFilters();
-        return;
-      }
-
-      showToast("地点を検索中...");
-
+  window.importHistoryJson = function(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(evt) {
       try {
-        // 1. 駅名検索（末尾が「駅」、または住所特有の文字がない場合）
-        if (q.endsWith("駅") || !/[0-9０-９丁目番地号都道府県市区町村]/.test(q)) {
-          const stName = q.replace(/駅$/, "");
-          const hrRes = await fetch(`https://express.heartrails.com/api/json?method=getStations&name=${encodeURIComponent(stName)}`);
-          if (hrRes.ok) {
-            const hrData = await hrRes.json();
-            if (hrData.response && hrData.response.station && hrData.response.station.length > 0) {
-              const st = hrData.response.station[0];
-              setBaseLocation(parseFloat(st.y), parseFloat(st.x), `${st.name}駅（${st.prefecture} / ${st.line}）`);
-              return;
-            }
-          }
-        }
+        var data = JSON.parse(evt.target.result);
+        if (data.actionLogs) state.actionLogs = Object.assign({}, state.actionLogs, data.actionLogs);
+        if (data.excludedMap) state.excludedMap = Object.assign({}, state.excludedMap, data.excludedMap);
+        saveActionLogs();
+        saveExcludedMap();
+        renderList();
+        showPopup('履歴JSON復元完了', '送信履歴・クールダウン・永続除外リストを復元しました。');
+      } catch (err) { alert('JSONファイルの読み込みに失敗しました。'); }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
 
-        // 2. 国土地理院 住所検索API（ピンポイント座標を最優先取得）
-        const gsiRes = await fetch(`https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(q)}`);
-        if (gsiRes.ok) {
-          const gsiData = await gsiRes.json();
-          if (Array.isArray(gsiData) && gsiData.length > 0) {
-            const coords = gsiData[0].geometry.coordinates;
-            const title = gsiData[0].properties.title || q;
-            setBaseLocation(coords[1], coords[0], `${title}`);
-            return;
-          }
-        }
-      } catch (err) {
-        console.warn("外部ジオコーディングエラー:", err);
-      }
+  window.openModal = function(id) {
+    if (id === 'exportModal') updateExportPreview();
+    if (id === 'excludedModal') renderExcludedModal();
+    if (id === 'mergeInfoModal') renderMergeInfoModal();
+    document.getElementById(id).classList.remove('hidden');
+  };
 
-      // 3. フォールバック：ローカル町丁目辞書から検索
-      await ensureCoordsDictLoaded();
-      for (const pref of Object.keys(TOWN_COORDS_DICT)) {
-        if (q.includes(pref)) {
-          const found = lookupCoordsFromDict(pref, "", q);
-          if (found) {
-            setBaseLocation(found.lat, found.lng, `${q}（辞書照合: ${found.matchedTown}）`);
-            return;
-          }
-        }
-      }
+  window.closeModal = function(id) {
+    document.getElementById(id).classList.add('hidden');
+  };
 
-      showToast("地点が見つかりませんでした。都道府県や駅名を含めてお試しください。");
+  function showPopup(title, message) {
+    document.getElementById('popupTitle').textContent = title;
+    document.getElementById('popupMessage').textContent = message;
+    document.getElementById('popupModal').classList.remove('hidden');
+  }
+
+  function renderExcludedModal() {
+    var container = document.getElementById('excludedListContainer');
+    var keys = Object.keys(state.excludedMap);
+    if (keys.length === 0) {
+      container.innerHTML = '<p class="text-center text-gray-400 py-6">現在、永続除外リストに登録されている求職者はいません。</p>';
+      return;
     }
-
-    function setBaseLocation(lat, lng, label) {
-      baseCoords = { lat, lng, label };
-      const infoEl = document.getElementById("baseCoordInfo");
-      document.getElementById("baseCoordLabel").textContent = `基準地点: ${label}`;
-      infoEl.classList.remove("hidden");
-
-      const rangeEl = document.getElementById("distanceRange");
-      if (parseInt(rangeEl.value, 10) >= 51) {
-        rangeEl.value = 5;
-        onDistanceRangeInput(5, false);
-      }
-      applyFilters();
-      showToast("距離を計算しました");
-    }
-
-    function clearUnifiedSearch() {
-      document.getElementById("unifiedInput").value = "";
-      document.getElementById("clearUnifiedBtn").classList.add("hidden");
-      document.getElementById("baseCoordInfo").classList.add("hidden");
-      baseCoords = null;
-      setDistancePreset(51);
-      document.getElementById("sortSelect").value = "newest";
-      applyFilters();
-    }
-
-    let sliderDebounceTimer = null;
-    function onDistanceRangeInput(val, shouldFilter = true) {
-      const num = parseInt(val, 10);
-      const badge = document.getElementById("distanceBadge");
-      const status = document.getElementById("sliderStatusText");
-      if (num >= 51) {
-        badge.textContent = "制限なし";
-        status.textContent = "全件表示中";
-      } else {
-        badge.textContent = `${num}km`;
-        status.textContent = `${num}km以内`;
-      }
-      if (shouldFilter) {
-        clearTimeout(sliderDebounceTimer);
-        sliderDebounceTimer = setTimeout(() => applyFilters(), 80);
-      }
-    }
-
-    function setDistancePreset(val) {
-      const rangeEl = document.getElementById("distanceRange");
-      rangeEl.value = val;
-      onDistanceRangeInput(val, true);
-    }
-
-    function setRegionFilter(region) {
-      currentRegion = region;
-      currentPref = "all";
-      ["All", "Kanto", "Kansai"].forEach(k => {
-        const btn = document.getElementById(`btnRegion${k}`);
-        const isMatch = (k === "All" && region === "all") ||
-                        (k === "Kanto" && region === "関東") ||
-                        (k === "Kansai" && region === "関西");
-        btn.className = isMatch
-          ? "px-3 py-1 rounded-lg transition bg-white text-[#1864d0] shadow-sm"
-          : "px-3 py-1 rounded-lg transition text-gray-600 hover:text-gray-900";
-      });
-      renderPrefPills();
-      applyFilters();
-    }
-
-    function setJobFilter(type) {
-      currentJobType = type;
-      const map = { all: "btnJobAll", "介護": "btnJobKaigo", "看護": "btnJobKango" };
-      Object.entries(map).forEach(([k, id]) => {
-        const btn = document.getElementById(id);
-        btn.className = (k === type)
-          ? "px-3 py-1.5 rounded-full text-xs font-bold transition bg-[#1864d0] text-white shadow-sm"
-          : "px-3 py-1.5 rounded-full text-xs font-bold transition bg-[#f0f4f4] hover:bg-[#e4e9ec] text-[#344050]";
-      });
-      applyFilters();
-    }
-
-    function setPrefFilter(pref) {
-      currentPref = pref;
-      renderPrefPills();
-      applyFilters();
-    }
-
-    function renderPrefPills() {
-      const container = document.getElementById("prefPillContainer");
-      const counts = {};
-      allJobs.forEach(j => {
-        if (!j.pref) return;
-        if (currentRegion === "関東" && !KANTO_PREFS.includes(j.pref)) return;
-        if (currentRegion === "関西" && !KANSAI_PREFS.includes(j.pref)) return;
-        counts[j.pref] = (counts[j.pref] || 0) + 1;
-      });
-
-      const prefs = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
-      if (prefs.length === 0) {
-        container.innerHTML = "";
-        return;
-      }
-
-      let html = `<button type="button" onclick="setPrefFilter('all')" class="px-2.5 py-1 rounded-full font-bold transition ${currentPref === 'all' ? 'bg-gray-800 text-white' : 'bg-[#f0f4f4] text-[#485460] hover:bg-gray-200'}">全エリア</button>`;
-      prefs.forEach(p => {
-        const active = currentPref === p;
-        html += `<button type="button" onclick="setPrefFilter('${p}')" class="px-2.5 py-1 rounded-full font-bold transition ${active ? 'bg-[#1864d0] text-white' : 'bg-[#f0f4f4] text-[#344050] hover:bg-gray-200'}">${p} <span class="opacity-75 text-[10px]">${counts[p]}</span></button>`;
-      });
-      container.innerHTML = html;
-    }
-
-    function toggleEmpChip(btn, val) {
-      if (activeEmpTypes.has(val)) {
-        activeEmpTypes.delete(val);
-        btn.classList.remove("bg-blue-600", "text-white");
-        btn.classList.add("bg-gray-100", "text-gray-700");
-      } else {
-        activeEmpTypes.add(val);
-        btn.classList.remove("bg-gray-100", "text-gray-700");
-        btn.classList.add("bg-blue-600", "text-white");
-      }
-      applyFilters();
-    }
-
-    function toggleChip(btn, category, val) {
-      const targetSet = category === "shift" ? activeShifts : activeFacilityTypes;
-      if (targetSet.has(val)) {
-        targetSet.delete(val);
-        btn.classList.remove("bg-blue-600", "text-white");
-        btn.classList.add("bg-gray-100", "text-gray-700");
-      } else {
-        targetSet.add(val);
-        btn.classList.remove("bg-gray-100", "text-gray-700");
-        btn.classList.add("bg-blue-600", "text-white");
-      }
-      applyFilters();
-    }
-
-    function matchFacilityType(rawType, filterKey) {
-      const t = rawType || "";
-      switch (filterKey) {
-        case "特養": return t.includes("介護老人福祉施設") || t.includes("特養");
-        case "老健": return t.includes("介護老人保健施設") || t.includes("老健");
-        case "有料": return t.includes("有料老人ホーム");
-        case "GH": return t.includes("認知症対応型共同生活介護") || t.includes("グループホーム");
-        case "サ高住": return t.includes("サービス付き高齢者向け住宅") || t.includes("サ高住");
-        case "デイ": return t.includes("通所介護") || t.includes("通所リハビリ");
-        case "ショート": return t.includes("短期入所");
-        case "訪問介護": return t.includes("訪問介護");
-        case "訪問看護": return t.includes("訪問看護");
-        case "病院": return t.includes("一般") || t.includes("病院") || t.includes("介護医療院");
-        case "小多機": return t.includes("小規模多機能");
-        default: return t.includes(filterKey);
-      }
-    }
-
-    function renderDictCoverage() {
-      const panel = document.getElementById("dictCoveragePanel");
-      if (!panel) return;
-      const registered = Object.keys(TOWN_COORDS_DICT);
-      const majorPrefs = [
-        "東京都", "神奈川県", "埼玉県", "千葉県", "茨城県", "栃木県", "群馬県",
-        "大阪府", "兵庫県", "京都府", "滋賀県", "奈良県", "和歌山県",
-        "愛知県", "静岡県", "岐阜県", "三重県",
-        "福岡県", "北海道", "宮城県", "広島県"
-      ];
-      const missingMajor = majorPrefs.filter(p => !registered.includes(p));
-      // Also find any prefectures present in allJobs that are NOT in TOWN_COORDS_DICT
-      const jobPrefs = Array.from(new Set(allJobs.map(j => j.pref).filter(Boolean)));
-      const missingFromJobs = jobPrefs.filter(p => !registered.includes(p));
-
-      const regText = registered.length > 0 ? registered.join("・") : "なし";
-      const missText = missingMajor.length > 0 ? missingMajor.join("・") : "主要エリアはすべて登録済み！";
-      const jobMissHtml = missingFromJobs.length > 0
-        ? `<div class="mt-1 text-red-600 font-bold">⚠️ 現在の案件データにある未登録県: ${missingFromJobs.join("・")}</div>`
-        : "";
-
-      panel.innerHTML = `
-        <div class="text-emerald-800 font-bold">✅ 登録済み (${registered.length}都道府県): <span class="font-normal text-gray-700">${regText}</span></div>
-        <div class="mt-1 text-amber-800 font-bold">📍 主要エリア未登録: <span class="font-normal text-gray-700">${missText}</span></div>
-        ${jobMissHtml}
-      `;
-    }
-
-    function updateHeaderCounts() {
-      document.getElementById("totalHeaderCount").textContent = `${allJobs.length.toLocaleString()}件`;
-      document.getElementById("countPillAll").textContent = allJobs.length;
-      document.getElementById("countPillKaigo").textContent = allJobs.filter(j => (j.jobTypes || [j.jobType]).includes("介護")).length;
-      document.getElementById("countPillKango").textContent = allJobs.filter(j => (j.jobTypes || [j.jobType]).includes("看護")).length;
-    }
-
-    let lastBaseCoordKey = "";
-    function applyFilters() {
-      displayLimit = 100;
-      const maxDist = parseInt(document.getElementById("distanceRange").value, 10);
-      const startVal = document.getElementById("dateStart").value;
-      const endVal = document.getElementById("dateEnd").value;
-      const sortMode = document.getElementById("sortSelect").value;
-
-      const startTs = startVal ? new Date(startVal + "T00:00:00").getTime() : null;
-      const endTs = endVal ? new Date(endVal + "T23:59:59").getTime() : null;
-
-      // 基準地点が変わったときだけ全件の距離を再計算（スライダー移動やチップ切替では再利用）
-      const curCoordKey = baseCoords ? `${baseCoords.lat},${baseCoords.lng}` : "";
-      if (curCoordKey !== lastBaseCoordKey) {
-        lastBaseCoordKey = curCoordKey;
-        for (let i = 0; i < allJobs.length; i++) {
-          const job = allJobs[i];
-          job.distanceKm = (baseCoords && job.lat != null && job.lng != null)
-            ? calcDistanceKm(baseCoords.lat, baseCoords.lng, job.lat, job.lng)
-            : null;
-        }
-      }
-
-      const result = [];
-      for (let i = 0; i < allJobs.length; i++) {
-        const job = allJobs[i];
-        if (currentRegion === "関東" && !KANTO_PREFS.includes(job.pref)) continue;
-        if (currentRegion === "関西" && !KANSAI_PREFS.includes(job.pref)) continue;
-        if (currentPref !== "all" && job.pref !== currentPref) continue;
-        if (currentJobType !== "all") {
-          const jTypes = job.jobTypes || [job.jobType];
-          if (!jTypes.includes(currentJobType)) continue;
-        }
-
-        if (activeEmpTypes.size > 0) {
-          const eTypes = job.empTypes || [job.empType];
-          if (!eTypes.some(et => activeEmpTypes.has(et))) continue;
-        }
-
-        if (activeShifts.size > 0) {
-          if (!job.shifts.some(s => activeShifts.has(s))) continue;
-        }
-
-        if (activeFacilityTypes.size > 0) {
-          if (!Array.from(activeFacilityTypes).some(ft => matchFacilityType(job.facilityType, ft))) continue;
-        }
-
-        if (startTs && (!job.timestamp || job.timestamp < startTs)) continue;
-        if (endTs && (!job.timestamp || job.timestamp > endTs)) continue;
-
-        if (baseCoords && maxDist < 51) {
-          if (job.distanceKm == null || job.distanceKm > maxDist) continue;
-        }
-
-        result.push(job);
-      }
-
-      if (sortMode === "distance" && baseCoords) {
-        result.sort((a, b) => (a.distanceKm ?? 99999) - (b.distanceKm ?? 99999));
-      } else {
-        result.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-      }
-
-      filteredJobs = result;
-      renderJobList();
-    }
-
-    function showMoreJobs() {
-      displayLimit += 100;
-      renderJobList();
-    }
-
-    function renderJobList() {
-      const container = document.getElementById("jobListContainer");
-      const noData = document.getElementById("noDataView");
-      const loadMoreWrap = document.getElementById("loadMoreWrap");
-      const loadMoreInfo = document.getElementById("loadMoreInfo");
-
-      document.getElementById("filteredCountText").textContent = filteredJobs.length.toLocaleString();
-
-      if (filteredJobs.length === 0) {
-        container.innerHTML = "";
-        noData.classList.remove("hidden");
-        loadMoreWrap.classList.add("hidden");
-        loadMoreInfo.textContent = "";
-        return;
-      }
-
-      noData.classList.add("hidden");
-      const slice = filteredJobs.slice(0, displayLimit);
-
-      if (filteredJobs.length > displayLimit) {
-        loadMoreWrap.classList.remove("hidden");
-        loadMoreInfo.textContent = `上位 ${displayLimit} 件を表示中`;
-      } else {
-        loadMoreWrap.classList.add("hidden");
-        loadMoreInfo.textContent = "";
-      }
-
-      container.innerHTML = slice.map(job => {
-        const isChecked = selectedJobIds.has(job.id);
-        const jobBadgeColor = job.jobType === "看護"
-          ? "bg-[#fcf0f8] text-[#be185d] border-[#f8cce8]"
-          : (job.jobType === "介護" ? "bg-[#ecf4fc] text-[#1864d0] border-[#bcd8fc]" : "bg-[#f0f4f4] text-[#344050] border-gray-200");
-
-        const distBadge = (job.distanceKm != null)
-          ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 text-xs font-extrabold"><i class="fa-solid fa-route text-[10px]"></i> ${job.distanceKm.toFixed(1)}km</span>`
-          : "";
-
-        const shiftBadges = (job.shifts || []).map(s =>
-          `<span class="px-2 py-0.5 bg-[#f0f4f4] text-[#344050] rounded text-[11px] font-bold">${escapeHtml(s)}</span>`
-        ).join("");
-        const displayNotes = job._cleanNotes !== undefined ? job._cleanNotes : (job._cleanNotes = extractCandidateNotes(job.notes));
-
-        const eList = (job.empTypes && job.empTypes.length > 0) ? job.empTypes : [job.empType || "派遣"];
-        const empBadgesHtml = eList.map(et => {
-          const c = et === "紹介予定派遣"
-            ? "bg-purple-50 text-purple-700 border-purple-200"
-            : (et === "紹介" ? "bg-orange-50 text-orange-700 border-orange-200" : "bg-[#f0fcf8] text-[#0f766e] border-[#98f4e4]");
-          return `<span class="px-2 py-0.5 rounded-md border text-[11px] font-extrabold ${c}">${escapeHtml(et)}</span>`;
-        }).join("");
-
-        return `
-          <div onclick="toggleJobSelection('${job.id}')" class="bg-white rounded-2xl p-4 shadow-sm border transition cursor-pointer ${isChecked ? 'border-[#1864d0] ring-2 ring-[#d8e8fc] bg-[#ecf4fc]/40' : 'border-gray-200/80 hover:border-blue-300'}">
-            <div class="flex items-start gap-3">
-              <div class="pt-0.5">
-                <input type="checkbox" ${isChecked ? "checked" : ""} onclick="event.stopPropagation(); toggleJobSelection('${job.id}')" class="w-4 h-4 text-[#1864d0] rounded border-gray-300 focus:ring-[#1864d0] cursor-pointer">
-              </div>
-              <div class="flex-1 min-w-0">
-                <div class="flex flex-wrap items-center gap-1.5 mb-1.5">
-                  <span class="px-2 py-0.5 rounded-md border text-[11px] font-extrabold ${jobBadgeColor}">${escapeHtml(job.jobType || "その他")}</span>
-                  ${empBadgesHtml}
-                  <span class="px-2 py-0.5 rounded-md bg-[#f0f4f4] text-[#485460] text-[11px] font-semibold">${escapeHtml(job.facilityType || "施設")}</span>
-                  ${distBadge}
-                  <span class="ml-auto text-[11px] text-gray-500 font-semibold">${escapeHtml(job._boDateText || (job._boDateText = formatBoDateDisplay(job.date, job.timestamp)))}</span>
-                </div>
-                <h2 class="text-sm sm:text-base font-extrabold text-gray-900 leading-snug mb-1">${escapeHtml(job.facility || "施設名未設定")}</h2>
-                <div class="text-xs text-gray-600 flex items-center gap-1.5 mb-2">
-                  <i class="fa-solid fa-location-dot text-gray-400"></i>
-                  <span>${escapeHtml(job._fullAddr || (job._fullAddr = formatFullAddress(job)))}</span>
-                </div>
-                <div class="flex flex-wrap items-center justify-between gap-2">
-                  <div class="flex flex-wrap items-center gap-1">
-                    ${shiftBadges}
-                  </div>
-                  ${displayNotes ? `
-                    <button type="button" onclick="event.stopPropagation(); toggleNoteDetail('${job.id}')" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${expandedNoteIds.has(job.id) ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'}">
-                      <i class="fa-solid ${expandedNoteIds.has(job.id) ? 'fa-chevron-up' : 'fa-chevron-down'} text-[10px]"></i>
-                      <span>${expandedNoteIds.has(job.id) ? '詳細を閉じる' : '詳細を見る'}</span>
-                    </button>
-                  ` : ""}
-                </div>
-                ${displayNotes && expandedNoteIds.has(job.id) ? `<div onclick="event.stopPropagation()" class="mt-2.5 p-3 bg-gray-50 rounded-xl text-xs text-gray-700 whitespace-pre-wrap leading-relaxed border border-gray-200/80 cursor-text">${escapeHtml(displayNotes)}</div>` : ""}
-              </div>
-            </div>
-          </div>
-        `;
-      }).join("");
-    }
-
-    function formatFullAddress(j) {
-      const pref = j.pref || "";
-      const city = j.city || "";
-      let addr = j.address || "";
-      if (pref && addr.startsWith(pref)) addr = addr.slice(pref.length);
-      if (city && addr.startsWith(city)) addr = addr.slice(city.length);
-      const normCity = city.replace(/ヶ/g, "ケ");
-      const normAddr = addr.replace(/ヶ/g, "ケ");
-      if (normCity && normAddr.startsWith(normCity)) addr = addr.slice(normCity.length);
-      // 住所の末尾に施設名がそのままくっついていた場合は除去（例: 関口1-14-12介護付き有料老人ホーム... -> 関口1-14-12）
-      const fac = String(j.facility || "").trim();
-      if (fac && fac.length >= 4 && addr.endsWith(fac)) {
-        addr = addr.slice(0, -fac.length).trim();
-      }
-      return `${pref}${city}${addr}`;
-    }
-
-    function escapeHtml(str) {
-      return String(str)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-    }
-
-    function toggleNoteDetail(id) {
-      if (expandedNoteIds.has(id)) expandedNoteIds.delete(id);
-      else expandedNoteIds.add(id);
-      renderJobList();
-    }
-
-    function toggleJobSelection(id) {
-      if (selectedJobIds.has(id)) selectedJobIds.delete(id);
-      else selectedJobIds.add(id);
-      updateSelectedBadge();
-      renderJobList();
-    }
-
-    function selectAll() {
-      filteredJobs.slice(0, displayLimit).forEach(j => selectedJobIds.add(j.id));
-      updateSelectedBadge();
-      renderJobList();
-    }
-
-    function deselectAll() {
-      selectedJobIds.clear();
-      updateSelectedBadge();
-      renderJobList();
-    }
-
-    function updateSelectedBadge() {
-      document.getElementById("selectedCountBadge").textContent = `${selectedJobIds.size}件選択中`;
-    }
-
-    // 求職者向け備考スマート抽出＆クレンジング（社内情報・単価・担当者・年齢制限・平均介護度・「OK」表現を除去）
-    function formatCompactTimeStr(str) {
-      // "845-1720" や "845～1720" を "8:45〜17:20" に整形
-      return str.replace(/\b(\d{1,2})(\d{2})\s*[-－〜～]\s*(\d{1,2})(\d{2})\b/g, "$1:$2〜$3:$4");
-    }
-
-    function sanitizeCandidatePhrase(text) {
-      if (!text) return "";
-      let s = String(text)
-        .replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
-        .replace(/ＯＫ|ｏｋ/gi, "OK");
-
-      // 社内用語・B2B用語・請求・担当者・年齢制限・平均介護度・面接関連を含む文やフレーズを除外
-      const internalNgPattern = /(単価|請求|マージン|紹介料|手数料|粗利|担当者|営業|年齢制限|\d{2}歳(?:まで|以下|以上|前後)|平均介護度|介護度\s*\d|顔合わせ|職場見学|面接|書類選考|履歴書|職務経歴書|競合|他社|成約|決定|派遣先|指揮命令|抵触日|マージン|掛け率|キックバック|クレーム|退職|離職|穴埋め|欠員|増員|急募)/;
-      if (internalNgPattern.test(s)) return "";
-
-      // 「正看OK」「准看OK」「未経験OK」「車OK」などの「OK」を除去・整形
-      s = s
-        .replace(/正看\s*OK/g, "正看護師")
-        .replace(/准看\s*OK/g, "准看護師")
-        .replace(/初任者\s*OK/g, "初任者研修")
-        .replace(/実務者\s*OK/g, "実務者研修")
-        .replace(/介福\s*OK/g, "介護福祉士")
-        .replace(/無資格\s*OK/g, "無資格相談可")
-        .replace(/未経験\s*OK/g, "未経験相談可")
-        .replace(/ブランク\s*OK/g, "ブランク相談可")
-        .replace(/扶養内\s*OK/g, "扶養内相談可")
-        .replace(/Wワーク\s*OK|ダブルワーク\s*OK/gi, "Wワーク相談可")
-        .replace(/車通勤\s*OK|車\s*OK/g, "車通勤可")
-        .replace(/バイク\s*OK/g, "バイク通勤可")
-        .replace(/自転車\s*OK/g, "自転車通勤可")
-        .replace(/固定\s*OK/g, "固定相談可")
-        .replace(/相談\s*OK/g, "相談可")
-        .replace(/OK[！!。、・\s]*/g, "")
-        .replace(/[（(]\s*[)）]/g, "")
-        .trim();
-
-      s = formatCompactTimeStr(s);
-      // 記号だけのゴミや極端に短い無意味な文字を除外
-      if (!s || /^[-・、。:：\s/／]+$/.test(s)) return "";
-      return s;
-    }
-
-    function extractCandidateNotes(rawNotes) {
-      if (!rawNotes) return "";
-      const raw = String(rawNotes).trim();
-      if (!raw) return "";
-
-      // 許可する【】セクション（社内用セクションは一切拾わない）
-      const allowedHeaders = [
-        "必要な資格",
-        "経験要件",
-        "就業日数",
-        "就業曜日",
-        "シフト詳細",
-        "曜日固定可否",
-        "勤務時間",
-        "その他備考"
-      ];
-
-      const headerMap = new Map();
-      const freeItems = [];
-      const seenFree = new Set();
-
-      // 1. 【項目名】形式のブロックを解析（同一項目名は1行に統合）
-      if (raw.includes("【")) {
-        const parts = raw.split(/(?=【[^】]+】)/);
-        for (const part of parts) {
-          const m = part.match(/^【([^】]+)】\s*([\s\S]*)$/);
-          if (!m) continue;
-          const header = m[1].trim();
-          const body = m[2].replace(/\n---\n/g, "\n").trim();
-          if (!body) continue;
-
-          if (allowedHeaders.includes(header)) {
-            const lines = body.split(/[\n\r]+/).map(l => sanitizeCandidatePhrase(l)).filter(Boolean);
-            if (lines.length > 0) {
-              if (!headerMap.has(header)) headerMap.set(header, new Set());
-              const valSet = headerMap.get(header);
-              lines.forEach(l => valSet.add(l));
-            }
-          }
-        }
-      }
-
-      const extractedItems = [];
-      for (const h of allowedHeaders) {
-        if (headerMap.has(h) && headerMap.get(h).size > 0) {
-          extractedItems.push(`・${h}：${Array.from(headerMap.get(h)).join(" / ")}`);
-        }
-      }
-
-      // 2. 【】が無いフリーテキスト行からも求職者向け条件っぽい行だけ抽出
-      const freeLines = raw
-        .replace(/【[^】]+】[\s\S]*?(?=【|$)/g, "")
-        .split(/[\n\r]+/);
-
-      const candidateKeywordPattern = /(資格|初任者|実務者|介護福祉士|介福|正看護|准看護|正看|准看|ヘルパー|無資格|経験|未経験|ブランク|週\s*[1-7１-７]|シフト|曜日|固定|土日|休日|休み|勤務時間|\d{1,2}[:：]\d{2}|\d{3,4}\s*[-－〜～]\s*\d{3,4}|早番|早出|日勤|遅番|遅出|夜勤|休憩|残業|交通費|車通勤|マイカー|駐車場|バイク|自転車|駅|徒歩|制服|食事|扶養|ユニット|従来|フロア)/;
-
-      for (const line of freeLines) {
-        const trimmed = line.replace(/^[・•●■◆\-*\s]+/, "").trim();
-        if (!trimmed) continue;
-        if (!candidateKeywordPattern.test(trimmed)) continue;
-        const cleaned = sanitizeCandidatePhrase(trimmed);
-        if (cleaned && !seenFree.has(cleaned)) {
-          seenFree.add(cleaned);
-          extractedItems.push(`・${cleaned}`);
-        }
-      }
-
-      return extractedItems.join("\n");
-    }
-
-    function formatShortFacilityType(rawType) {
-      const t = String(rawType || "");
-      if (t.includes("介護老人福祉施設") || t.includes("特養")) return "特養";
-      if (t.includes("介護老人保健施設") || t.includes("老健")) return "老健";
-      if (t.includes("有料老人ホーム")) return "有料";
-      if (t.includes("認知症対応型共同生活介護") || t.includes("グループホーム")) return "GH";
-      if (t.includes("サービス付き高齢者向け住宅") || t.includes("サ高住")) return "サ高住";
-      if (t.includes("通所介護") || t.includes("通所リハビリ")) return "デイ";
-      if (t.includes("短期入所")) return "ショート";
-      if (t.includes("訪問介護")) return "訪問介護";
-      if (t.includes("訪問看護")) return "訪問看護";
-      if (t.includes("小規模多機能")) return "小多機";
-      if (t.includes("一般") || t.includes("病院") || t.includes("介護医療院")) return "病院";
-      return t || "施設";
-    }
-
-    function extractWorkHoursSummary(notes, shifts) {
-      const shiftStr = (shifts && shifts.length > 0) ? shifts.join("・") : "日勤";
-      if (!notes) return `${shiftStr} (${shiftStr})`;
-      const normNotes = formatCompactTimeStr(
-        String(notes).replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
-      );
-      const timeMatches = normNotes.match(/(?:早番|早出|日勤|遅番|遅出|夜勤)?[：:・\s]*\d{1,2}[:：時]\d{0,2}\s*[〜～\-－ー]\s*(?:翌)?\d{1,2}[:：時]\d{0,2}/g);
-      if (timeMatches && timeMatches.length > 0) {
-        const cleaned = Array.from(new Set(timeMatches.map(s => s.trim()))).slice(0, 3).join(" / ");
-        return `${shiftStr} (${cleaned})`;
-      }
-      return `${shiftStr} (${shiftStr})`;
-    }
-
-    function copySelectedJobs() {
-      if (selectedJobIds.size === 0) {
-        showToast("コピーする案件を選択してください");
-        return;
-      }
-      const orderedTargets = filteredJobs.filter(j => selectedJobIds.has(j.id));
-      const targets = orderedTargets.length > 0 ? orderedTargets : allJobs.filter(j => selectedJobIds.has(j.id));
-
-      const header = "📋 案件候補のご案内\n\n";
-      const body = targets.map((j, idx) => {
-        const shortType = formatShortFacilityType(j.facilityType);
-        const pref = j.pref || "";
-        const city = j.city || "";
-        let addr = j.address || "";
-        if (pref && addr.startsWith(pref)) addr = addr.slice(pref.length);
-        if (city && addr.startsWith(city)) addr = addr.slice(city.length);
-        const normCity = city.replace(/ヶ/g, "ケ");
-        const normAddr = addr.replace(/ヶ/g, "ケ");
-        if (normCity && normAddr.startsWith(normCity)) addr = addr.slice(normCity.length);
-        const area = `${pref}${city}${addr}`;
-        const workTime = extractWorkHoursSummary(j.notes, j.shifts);
-        const cleanNotes = extractCandidateNotes(j.notes);
-        const notesLine = cleanNotes ? `\n備考：\n${cleanNotes}` : "";
-        return `■ ${idx + 1}. ${j.facility}\n施設形態：${shortType}\nエリア：${area}\n勤務時間：${workTime}${notesLine}\n―――`;
-      }).join("\n\n");
-
-      const hasKaigo = targets.some(j => (j.jobTypes || [j.jobType]).includes("介護"));
-      const hasKango = targets.some(j => (j.jobTypes || [j.jobType]).includes("看護"));
-      let wageLabel = "介護 1,500〜1,800円程度／看護 2,200〜2,450円程度";
-      if (hasKaigo && !hasKango) {
-        wageLabel = "介護 1,500〜1,800円程度";
-      } else if (hasKango && !hasKaigo) {
-        wageLabel = "看護 2,200〜2,450円程度";
-      }
-
-      const footer = `\n\n※時給相場：${wageLabel}（資格・経験により変動します）\n※勤務時間やシフトは直近のオーダー内容です。ご状況に合わせて相談・調整も可能ですのでお気軽にどうぞ！\n\n気になる案件がございましたら下記をご返信ください📩\n\n【ご返信テンプレート】\n気になる案件番号：\n提案NGの案件番号：\n見学希望日：\n\n※応募者多数のため、2〜3件以上エントリーがおすすめです！`;
-
-      const text = header + body + footer;
-
-      if (targets.length === 0) {
-        showToast("選択された案件データが見つかりませんでした。再選択してください");
-        return;
-      }
-
-      fallbackCopyText(text, targets.length);
-    }
-
-    function fallbackCopyText(text, count) {
-      if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(text).then(() => {
-          showToast(`${count}件の案件をコピーしました`);
-        }).catch(() => {
-          execTextareaCopy(text, count);
-        });
-      } else {
-        execTextareaCopy(text, count);
-      }
-    }
-
-    function execTextareaCopy(text, count) {
-      const ta = document.createElement("textarea");
-      ta.value = text;
-      ta.style.position = "fixed";
-      ta.style.top = "0";
-      ta.style.left = "0";
-      ta.style.width = "2em";
-      ta.style.height = "2em";
-      ta.style.opacity = "0";
-      document.body.appendChild(ta);
-      ta.focus();
-      ta.select();
-      try {
-        const ok = document.execCommand("copy");
-        if (ok) {
-          showToast(`${count}件の案件をコピーしました`);
-        } else {
-          prompt("以下のテキストをコピーしてください（Ctrl+C / Cmd+C）:", text);
-        }
-      } catch (err) {
-        prompt("以下のテキストをコピーしてください（Ctrl+C / Cmd+C）:", text);
-      }
-      document.body.removeChild(ta);
-    }
-
-    function resetFilters() {
-      currentRegion = "all";
-      currentJobType = "all";
-      currentPref = "all";
-      activeEmpTypes = new Set(["派遣", "紹介予定派遣"]);
-      ["btnEmpHaken", "btnEmpTtp"].forEach(id => {
-        const b = document.getElementById(id);
-        if (b) { b.classList.add("bg-blue-600", "text-white"); b.classList.remove("bg-gray-100", "text-gray-700"); }
-      });
-      const bShokai = document.getElementById("btnEmpShokai");
-      if (bShokai) { bShokai.classList.remove("bg-blue-600", "text-white"); bShokai.classList.add("bg-gray-100", "text-gray-700"); }
-      activeShifts.clear();
-      activeFacilityTypes.clear();
-      document.getElementById("dateStart").value = "";
-      document.getElementById("dateEnd").value = "";
-      document.querySelectorAll(".chip").forEach(c => {
-        c.classList.remove("bg-blue-600", "text-white");
-        c.classList.add("bg-gray-100", "text-gray-700");
-      });
-      setRegionFilter("all");
-      setJobFilter("all");
-      clearUnifiedSearch();
-    }
-
-    function showToast(msg) {
-      const t = document.getElementById("toast");
-      document.getElementById("toastMsg").textContent = msg;
-      t.classList.remove("opacity-0");
-      setTimeout(() => t.classList.add("opacity-0"), 2500);
-    }
-
-    // --- CSVアップロード＆GitHub自動更新機能 ---
-    function openCsvModal() {
-      const modal = document.getElementById("csvModal");
-      if (modal) modal.style.display = "flex";
-      ensureCoordsDictLoaded();
-    }
-    function closeCsvModal() {
-      const modal = document.getElementById("csvModal");
-      if (modal) modal.style.display = "none";
-    }
-    function toggleGithubSettings() {
-      const panel = document.getElementById("githubSettingsPanel");
-      if (panel) panel.classList.toggle("hidden");
-    }
-    function saveGithubConfig() {
-      const token = document.getElementById("ghTokenInput").value.trim();
-      const owner = document.getElementById("ghOwnerInput").value.trim() || "kawazoedaichi";
-      const repo = document.getElementById("ghRepoInput").value.trim() || "searchOrder";
-      localStorage.setItem("gh_pat", token);
-      localStorage.setItem("gh_owner", owner);
-      localStorage.setItem("gh_repo", repo);
-      loadGithubConfigToForm();
-      showToast("GitHub設定を保存しました");
-    }
-    function loadGithubConfigToForm() {
-      const token = localStorage.getItem("gh_pat") || "";
-      const owner = localStorage.getItem("gh_owner") || "kawazoedaichi";
-      const repo = localStorage.getItem("gh_repo") || "searchOrder";
-      const tIn = document.getElementById("ghTokenInput");
-      const oIn = document.getElementById("ghOwnerInput");
-      const rIn = document.getElementById("ghRepoInput");
-      if (tIn) tIn.value = token;
-      if (oIn) oIn.value = owner;
-      if (rIn) rIn.value = repo;
-      const st = document.getElementById("tokenStatusText");
-      if (st && token) {
-        st.textContent = "設定済み ✓";
-        st.className = "text-[11px] font-bold text-emerald-600";
-      }
-    }
-
-    function pickCol(row, candidates) {
-      for (const key of candidates) {
-        if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== "") {
-          return String(row[key]).trim();
-        }
-      }
-      return "";
-    }
-
-    const dropZone = document.getElementById("dropZone");
-    if (dropZone) {
-      dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("bg-blue-100"); });
-      dropZone.addEventListener("dragleave", () => dropZone.classList.remove("bg-blue-100"));
-      dropZone.addEventListener("drop", e => {
-        e.preventDefault();
-        dropZone.classList.remove("bg-blue-100");
-        if (e.dataTransfer.files.length) handleFilesDrop(e.dataTransfer.files);
-      });
-    }
-
-    function parseCsvWithAutoEncoding(file, callback) {
-      Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        encoding: "UTF-8",
-        complete: function(results) {
-          const sample = JSON.stringify((results.data || []).slice(0, 3));
-          if (sample.includes("\uFFFD")) {
-            Papa.parse(file, {
-              header: true,
-              skipEmptyLines: true,
-              encoding: "Shift-JIS",
-              complete: callback
-            });
-          } else {
-            callback(results);
-          }
-        }
-      });
-    }
-
-    function handleFilesDrop(files) {
-      if (!files || !files.length) return;
-      const box = document.getElementById("uploadStatusBox");
-      const title = document.getElementById("uploadStatusTitle");
-      const pct = document.getElementById("uploadStatusPct");
-      const bar = document.getElementById("uploadStatusBar");
-      const detail = document.getElementById("uploadStatusDetail");
-
-      box.classList.remove("hidden");
-      title.textContent = `ファイル解析中 (${files.length}件)...`;
-      pct.textContent = "20%";
-      bar.style.width = "20%";
-
-      const fileList = Array.from(files);
-      const token = localStorage.getItem("gh_pat");
-
-      // JSON辞書ファイルがドロップされた場合はそのままマージしてGitHub保存
-      if (fileList.every(f => f.name.toLowerCase().endsWith(".json"))) {
-        (async () => {
-          let mergedPrefs = 0;
-          let addedTowns = 0;
-          for (const f of fileList) {
-            try {
-              const txt = await f.text();
-              const obj = JSON.parse(txt);
-              for (const [pref, cities] of Object.entries(obj)) {
-                if (!cities || typeof cities !== "object") continue;
-                if (!TOWN_COORDS_DICT[pref]) TOWN_COORDS_DICT[pref] = {};
-                mergedPrefs++;
-                for (const [city, towns] of Object.entries(cities)) {
-                  if (!TOWN_COORDS_DICT[pref][city]) TOWN_COORDS_DICT[pref][city] = {};
-                  for (const [town, coords] of Object.entries(towns)) {
-                    if (Array.isArray(coords) && coords.length >= 2) {
-                      TOWN_COORDS_DICT[pref][city][town] = coords;
-                      addedTowns++;
-                    }
-                  }
-                }
-              }
-            } catch (e) {
-              console.error("JSON読込エラー:", e);
-            }
-          }
-          allJobs = allJobs.map((j, idx) => enrichJobData({ ...j, lat: null, lng: null }, idx));
-          renderDictCoverage();
-          applyFilters();
-
-          if (token) {
-            pct.textContent = "70%";
-            bar.style.width = "70%";
-            title.textContent = "座標辞書をGitHubへ保存中...";
-            const ok = await pushFileToGithub("coords_dict.json", TOWN_COORDS_DICT, token, "Webアプリ経由でcoords_dict.jsonを更新する");
-          await idbSet("coords_dict_cache", { tag: String(Date.now()), data: TOWN_COORDS_DICT });
-            pct.textContent = "100%";
-            bar.style.width = "100%";
-            title.textContent = ok ? "座標辞書をGitHubへ保存しました！" : "座標辞書のGitHub保存に失敗しました";
-            detail.textContent = `${mergedPrefs}都道府県・${addedTowns.toLocaleString()}町丁目の座標を統合しました。`;
-          } else {
-            pct.textContent = "100%";
-            bar.style.width = "100%";
-            title.textContent = "座標辞書を更新しました（画面反映済み）";
-            detail.textContent = `${mergedPrefs}都道府県・${addedTowns.toLocaleString()}町丁目の座標を統合しました。`;
-          }
-        })();
-        return;
-      }
-
-      // 複数CSVの順次パース対応（国交省位置参照CSVの複数一括ドロップにも対応）
-      (async () => {
-        let totalMlitTowns = 0;
-        let hasMlit = false;
-        let allMetabaseRows = [];
-        let lastMetabaseHeaders = [];
-
-        for (let i = 0; i < fileList.length; i++) {
-          const f = fileList[i];
-          if (!f.name.toLowerCase().endsWith(".csv")) continue;
-          title.textContent = `解析中 (${i + 1}/${fileList.length}): ${f.name}`;
-          pct.textContent = `${Math.round(15 + (i / fileList.length) * 45)}%`;
-          bar.style.width = `${Math.round(15 + (i / fileList.length) * 45)}%`;
-
-          const results = await new Promise(resolve => parseCsvWithAutoEncoding(f, resolve));
-          const rows = results.data || [];
-          if (rows.length === 0) continue;
-          const headers = Object.keys(rows[0]);
-          const mlitTownCol = headers.includes("大字町丁目名") ? "大字町丁目名" : (headers.includes("大字・丁目名") ? "大字・丁目名" : "");
-
-          if (headers.includes("都道府県名") && mlitTownCol && headers.includes("緯度")) {
-            hasMlit = true;
-            const acc = {};
-            rows.forEach(r => {
-              const p = r["都道府県名"], c = r["市区町村名"], t = r[mlitTownCol];
-              const la = parseFloat(r["緯度"]), ln = parseFloat(r["経度"]);
-              if (p && c && t && !isNaN(la) && !isNaN(ln)) {
-                acc[p] = acc[p] || {};
-                acc[p][c] = acc[p][c] || {};
-                if (!acc[p][c][t]) acc[p][c][t] = { sumLat: 0, sumLng: 0, cnt: 0 };
-                acc[p][c][t].sumLat += la;
-                acc[p][c][t].sumLng += ln;
-                acc[p][c][t].cnt += 1;
-              }
-            });
-            for (const [p, cities] of Object.entries(acc)) {
-              if (!TOWN_COORDS_DICT[p]) TOWN_COORDS_DICT[p] = {};
-              for (const [c, towns] of Object.entries(cities)) {
-                if (!TOWN_COORDS_DICT[p][c]) TOWN_COORDS_DICT[p][c] = {};
-                for (const [t, val] of Object.entries(towns)) {
-                  TOWN_COORDS_DICT[p][c][t] = [
-                    Number((val.sumLat / val.cnt).toFixed(6)),
-                    Number((val.sumLng / val.cnt).toFixed(6))
-                  ];
-                  totalMlitTowns++;
-                }
-              }
-            }
-          } else {
-            allMetabaseRows = allMetabaseRows.concat(rows);
-            lastMetabaseHeaders = headers;
-          }
-        }
-
-        if (hasMlit) {
-          allJobs = allJobs.map((j, idx) => enrichJobData({ ...j, lat: null, lng: null }, idx));
-          renderDictCoverage();
-          applyFilters();
-
-          if (token) {
-            pct.textContent = "75%";
-            bar.style.width = "75%";
-            title.textContent = "座標辞書をGitHubへ保存中...";
-            const ok = await pushFileToGithub("coords_dict.json", TOWN_COORDS_DICT, token, "Webアプリ経由でcoords_dict.jsonを更新する");
-          await idbSet("coords_dict_cache", { tag: String(Date.now()), data: TOWN_COORDS_DICT });
-            pct.textContent = "100%";
-            bar.style.width = "100%";
-            title.textContent = ok ? "座標辞書をGitHubへ保存しました！" : "座標辞書のGitHub保存に失敗しました";
-            detail.textContent = `${totalMlitTowns.toLocaleString()}町丁目の重心座標を算出して追加しました。`;
-          } else {
-            pct.textContent = "100%";
-            bar.style.width = "100%";
-            title.textContent = "座標辞書を更新しました（画面反映済み）";
-            detail.textContent = `${totalMlitTowns.toLocaleString()}町丁目の重心座標を算出して追加しました。`;
-          }
-          if (allMetabaseRows.length === 0) return;
-        }
-
-        if (allMetabaseRows.length === 0) {
-          if (!hasMlit) title.textContent = "エラー: 有効なCSVデータが見つかりません";
-          return;
-        }
-
-        const headers = lastMetabaseHeaders;
-        const rows = allMetabaseRows;
-        const kColKey = headers.length > 10 ? headers[10] : "";
-        const parsedJobs = rows.map((r, idx) => {
-          const pref = pickCol(r, ["都道府県", "都道府県名", "pref", "prefecture"]);
-          const city = pickCol(r, ["市区町村", "市区町村名", "city"]);
-          const addrParts = [
-            pickCol(r, ["町域・番地・建物名", "町域・番地", "住所", "所在地", "住所1", "住所１", "町名番地", "町丁目番地", "丁番地", "address", "address1"]),
-            pickCol(r, ["町域", "町名", "町丁目", "大字町丁目", "大字", "town"]),
-            pickCol(r, ["番地", "番地以降", "住所2", "住所２", "建物名", "address2"])
-          ].filter(Boolean);
-          let addr = "";
-          for (const part of addrParts) {
-            if (!addr.includes(part)) addr += part;
-          }
-          if (!addr) {
-            for (const h of headers) {
-              if (h === "都道府県" || h === "都道府県名" || h === "市区町村" || h === "市区町村名") continue;
-              if (/住所|町名|町域|町丁目|番地|所在地|address/i.test(h)) {
-                const v = String(r[h] || "").trim();
-                if (v && !addr.includes(v)) addr += v;
-              }
-            }
-          }
-          const facility = pickCol(r, ["施設名", "事業所名", "クライアント名", "法人名", "facility", "client_name"]);
-          const jobType = pickCol(r, ["職種", "案件種別", "募集職種", "jobType", "job_type"]) || "介護";
-          const facilityType = pickCol(r, ["施設形態", "サービス種別", "事業所種別", "facilityType", "facility_type"]) || "一般";
-          let empType = pickCol(r, ["雇用形態", "就業形態", "取引種別", "契約形態", "empType", "employment_type"]);
-          if (!empType && kColKey && r[kColKey] !== undefined) {
-            empType = String(r[kColKey]).trim();
-          }
-          const shiftsRaw = pickCol(r, ["シフト", "勤務シフト", "時間帯", "shifts"]);
-          const initialShifts = shiftsRaw ? shiftsRaw.split(/[,、・\/\s]+/).filter(Boolean) : [];
-          const notes = pickCol(r, ["備考", "詳細", "メモ", "案件詳細", "notes", "memo"]);
-          const date = pickCol(r, ["BO取得日時", "獲得日時", "取得日時", "作成日時", "登録日時", "更新日時", "date", "created_at"]);
-          const coords = lookupCoordsFromDict(pref, city, addr);
-          return enrichJobData({
-            id: `job_${idx}`,
-            facility,
-            pref,
-            city,
-            address: addr,
-            empType,
-            jobType,
-            facilityType,
-            shifts: initialShifts,
-            notes,
-            date,
-            lat: coords ? coords.lat : null,
-            lng: coords ? coords.lng : null
-          }, idx);
-        });
-
-        const modeEl = document.querySelector('input[name="importMode"]:checked');
-        const mode = modeEl ? modeEl.value : "accumulate";
-        const prevCount = allJobs.length;
-        const combinedRaw = (mode === "accumulate") ? [...allJobs, ...parsedJobs] : [...parsedJobs];
-        const mergedJobs = mergeDuplicateJobs(combinedRaw);
-        allJobs = prepareJobsFast(mergedJobs);
-        idbSet("jobs_cache_v1", { tag: String(Date.now()), jobs: allJobs });
-        selectedJobIds.clear();
-        expandedNoteIds.clear();
-        updateSelectedBadge();
-        updateHeaderCounts();
-        renderPrefPills();
-        applyFilters();
-
-        pct.textContent = "70%";
-        bar.style.width = "70%";
-        title.textContent = mode === "accumulate"
-          ? `蓄積統合完了：全${mergedJobs.length}件（既存${prevCount}件 + 新規CSV ${parsedJobs.length}件）`
-          : `クリーン再構築完了：全${mergedJobs.length}件（過去データをリセットして新規CSVから生成）`;
-
-        if (token) {
-          title.textContent = "GitHubへ自動反映中...";
-          const ok = await pushFileToGithub("jobs.json", mergedJobs, token, "Webアプリ経由でjobs.jsonを再構築更新する");
-          pct.textContent = "100%";
-          bar.style.width = "100%";
-          if (ok) {
-            title.textContent = "GitHubへのクリーン反映が完了しました！";
-            detail.textContent = `全${mergedJobs.length}件（CSV ${parsedJobs.length}件から6区分ルールで再構築）をGitHubへ保存しました。`;
-          } else {
-            title.textContent = "GitHub同期エラー（画面には反映済み）";
-            detail.textContent = "トークン権限（repo）またはリポジトリ名を確認してください。";
-          }
-        } else {
-          pct.textContent = "100%";
-          bar.style.width = "100%";
-          detail.textContent = `全${mergedJobs.length}件を画面に反映しました。※GitHubにも保存する場合は上の「GitHub自動更新設定」にトークンを入力してください。`;
-        }
-      })();
-    }
-
-    async function resetAllJobsData() {
-      if (!confirm("過去の案件データ（jobs.json）をすべて消去して0件にリセットしますか？")) return;
-      allJobs = [];
-      filteredJobs = [];
-      idbSet("jobs_cache_v1", { tag: String(Date.now()), jobs: [] });
-      selectedJobIds.clear();
-      expandedNoteIds.clear();
-      updateSelectedBadge();
-      updateHeaderCounts();
-      renderPrefPills();
-      applyFilters();
-
-      const token = localStorage.getItem("gh_pat");
-      if (token) {
-        showToast("GitHubのjobs.jsonを空にリセット中...");
-        const ok = await pushFileToGithub("jobs.json", [], token, "過去のjobs.jsonデータを全消去リセット");
-        if (ok) {
-          showToast("GitHub上の過去データを完全に消去しました（0件）");
-        } else {
-          showToast("画面は0件にリセットしました（GitHub同期はトークンを確認してください）");
-        }
-      } else {
-        showToast("画面上の過去データを全消去しました（0件）");
-      }
-    }
-
-    async function pushFileToGithub(path, jsonData, token, commitPrefix) {
-      const owner = (localStorage.getItem("gh_owner") || "kawazoedaichi").trim();
-      const repo = (localStorage.getItem("gh_repo") || "searchOrder").trim();
-      const cleanToken = (token || "").trim();
-      const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
-
-      try {
-        let sha = null;
-        // 1. 通常のContents APIでsha取得を試行（1MB以下のファイル用）
-        const getRes = await fetch(apiUrl, {
-          headers: { Authorization: `token ${cleanToken}` },
-          cache: "no-store"
-        });
-        if (getRes.ok) {
-          const info = await getRes.json();
-          sha = info.sha;
-        } else if (getRes.status === 403 || getRes.status === 422) {
-          // 2. 1MB超のファイル（coords_dict.json等）はContents APIのGETが403になるため、Git Trees APIで親ディレクトリのshaを取得
-          const repoRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
-            headers: { Authorization: `token ${cleanToken}` },
-            cache: "no-store"
-          });
-          if (repoRes.ok) {
-            const repoInfo = await repoRes.json();
-            const branch = repoInfo.default_branch || "main";
-            const treeRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}`, {
-              headers: { Authorization: `token ${cleanToken}` },
-              cache: "no-store"
-            });
-            if (treeRes.ok) {
-              const treeData = await treeRes.json();
-              const entry = (treeData.tree || []).find(item => item.path === path);
-              if (entry) sha = entry.sha;
-            }
-          }
-        }
-
-        const contentStr = JSON.stringify(jsonData);
-        const bytes = new TextEncoder().encode(contentStr);
-        let binary = "";
-        const chunkSize = 0x8000;
-        for (let i = 0; i < bytes.byteLength; i += chunkSize) {
-          binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
-        }
-        const encoded = btoa(binary);
-        const today = new Date().toISOString().slice(0, 10).replace(/-/g, "/");
-        const putRes = await fetch(apiUrl, {
-          method: "PUT",
-          headers: {
-            Authorization: `token ${cleanToken}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            message: `${commitPrefix} (${today})`,
-            content: encoded,
-            sha: sha || undefined
-          })
-        });
-        return putRes.ok;
-      } catch (e) {
-        console.error("GitHub保存エラー:", e);
-        return false;
-      }
-    }
-
-    window.addEventListener("DOMContentLoaded", initApp);
-  </script>
+    container.innerHTML = keys.map(function(k) {
+      var item = state.excludedMap[k];
+      return '<div class="border border-gray-200 rounded-xl p-3 flex items-center justify-between gap-2 bg-gray-50"><div><p class="font-bold text-gray-900">' + escapeHtml(item.name) + '（TEL: ' + escapeHtml(item.phone) + '）</p><p class="text-[11px] text-gray-500">住所: ' + escapeHtml(item.address) + ' ／ 除外日時: ' + escapeHtml(item.timestamp) + '</p><p class="text-[11px] text-rose-600 font-medium">' + escapeHtml(item.reason) + '</p></div><button type="button" onclick="restoreExcludedCandidate(' + SQ + escapeHtml(k) + SQ + ')" class="px-3 py-1.5 rounded-lg bg-white border border-gray-300 hover:bg-gray-100 font-bold text-gray-700 whitespace-nowrap">除外解除</button></div>';
+    }).join('');
+  }
+
+  function renderMergeInfoModal() {
+    var body = document.getElementById('mergeInfoBody');
+    var logCount = Object.keys(state.actionLogs).length;
+    var excCount = Object.keys(state.excludedMap).length;
+    body.innerHTML = '<div class="bg-gray-50 rounded-xl p-3.5 border border-gray-200 space-y-1.5"><p>・元CSV総行数：<strong>' + state.rawCandidates.length + ' 件</strong>（全 ' + state.csvHeaders.length + ' 列保持）</p><p>・重複名寄せ統合（同一人物合体）：<strong>' + state.mergedDupCount + ' 件</strong></p><p>・稼働中／職見待ち／内定待ち 電話番号一致の自動除外：<strong>' + state.autoExcludedCount + ' 件</strong></p><p>・チェックボックス永続除外（タイムスタンプ保存済）：<strong>' + excCount + ' 件</strong></p><p>・独立ストレージ保存中の送信／クールダウン履歴：<strong>' + logCount + ' 件</strong></p></div>';
+  }
+
+  window.openRawRowModal = function(personKey) {
+    var c = state.mergedCandidates.find(function(x) { return x.personKey === personKey; });
+    if (!c) return;
+    state.currentRawCandidate = c;
+    document.getElementById('rawRowModalTitle').textContent = c.name + ' 様の元CSV全列データ';
+    renderCurrentRawModal();
+    openModal('rawRowModal');
+  };
+
+  window.renderCurrentRawModal = function() {
+    var c = state.currentRawCandidate;
+    if (!c) return;
+    var hideEmpty = document.getElementById('rawHideEmpty').checked;
+    var raw = c.rawRow || {};
+    var entries = Object.entries(raw).filter(function(kv) { return !hideEmpty || String(kv[1] || '').trim() !== ''; });
+    document.getElementById('rawColCountText').textContent = '表示列数: ' + entries.length + ' / 全' + Object.keys(raw).length + '列';
+    document.getElementById('rawRowModalBody').innerHTML = entries.map(function(kv) {
+      return '<div class="py-2 flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3"><span class="sm:w-48 shrink-0 font-bold text-gray-600">' + escapeHtml(kv[0]) + '</span><span class="text-gray-900 break-all">' + escapeHtml(kv[1] || '-') + '</span></div>';
+    }).join('') || '<p class="text-center text-gray-400 py-6">表示できる列データがありません。</p>';
+  };
+
+  function escapeHtml(str) {
+    var s = String(str === undefined || str === null ? '' : str);
+    return s
+      .split(AMP).join(AMP + 'amp;')
+      .split('<').join(AMP + 'lt;')
+      .split('>').join(AMP + 'gt;')
+      .split(DQ).join(AMP + 'quot;')
+      .split(SQ).join(AMP + '#39;');
+  }
+
+  loadPersistentStorage();
+  loadInitialData();
+  setupDragAndDrop();
+})();
+</script>
 </body>
 </html>
