@@ -647,12 +647,6 @@
           const badge = document.getElementById("dictStatusBadge");
           if (badge) badge.innerHTML = `<i class="fa-solid fa-location-crosshairs"></i> 町丁目高精度座標内蔵 (${prefCount}都道府県)`;
           renderDictCoverage();
-          if (allJobs.some(j => isCoarsePrefFallback(j) && j.pref && TOWN_COORDS_DICT[j.pref])) {
-            allJobs = prepareJobsFast(allJobs);
-            lastBaseCoordKey = "";
-            await idbSet("jobs_cache_v1", { tag: String(Date.now()), jobs: allJobs });
-            applyFilters();
-          }
         } catch (e) {
           console.warn("座標辞書ロードエラー:", e);
         }
@@ -661,35 +655,17 @@
       return dictLoadedPromise;
     }
 
-    function isCoarsePrefFallback(j) {
-      if (j.lat == null || j.lng == null || isNaN(j.lat) || isNaN(j.lng)) return true;
-      if (!j.matchedTown && j.pref && PREF_COORDS[j.pref]) {
-        const [pLat, pLng] = PREF_COORDS[j.pref];
-        if (Math.abs(j.lat - pLat) < 0.001 && Math.abs(j.lng - pLng) < 0.001) return true;
-      }
-      return false;
-    }
-
     function prepareJobsFast(rawJobs) {
+      // jobs.json に既に id / lat / lng / timestamp / shifts が入っている場合は高速パスを通す
       const isAlreadyMerged = rawJobs.length > 0 && rawJobs[0].timestamp !== undefined && rawJobs[0].empTypes !== undefined;
       if (isAlreadyMerged) {
-        return rawJobs.map((j, idx) => {
-          let updated = j;
-          // 以前「県庁所在地フォールバック」になっていた案件も、座標辞書が追加されていれば高精度座標へ自動アップグレード
-          if (isCoarsePrefFallback(j) && j.pref && TOWN_COORDS_DICT[j.pref]) {
-            const found = lookupCoordsFromDict(j.pref, j.city, j.address);
-            if (found) {
-              updated = { ...j, lat: found.lat, lng: found.lng, matchedTown: found.matchedTown };
-            }
-          }
-          return {
-            ...updated,
-            id: updated.id || `job_${idx}`,
-            _boDateText: formatBoDateDisplay(updated.date, updated.timestamp),
-            _fullAddr: formatFullAddress(updated),
-            _cleanNotes: extractCandidateNotes(updated.notes)
-          };
-        });
+        return rawJobs.map((j, idx) => ({
+          ...j,
+          id: j.id || `job_${idx}`,
+          _boDateText: formatBoDateDisplay(j.date, j.timestamp),
+          _fullAddr: formatFullAddress(j),
+          _cleanNotes: extractCandidateNotes(j.notes)
+        }));
       }
       const enriched = rawJobs.map((j, idx) => enrichJobData(j, idx));
       const merged = mergeDuplicateJobs(enriched);
@@ -721,7 +697,7 @@
           const jobsRes = await fetch("./jobs.json", { cache: "no-cache" }).catch(() => null);
           if (jobsRes && jobsRes.ok) {
             const rawJobs = await jobsRes.json();
-            const needDict = rawJobs.some(j => isCoarsePrefFallback(j));
+            const needDict = rawJobs.some(j => j.lat == null || j.lng == null);
             if (needDict) {
               await ensureCoordsDictLoaded();
             }
@@ -863,87 +839,63 @@
     }
 
     async function executeUnifiedSearch() {
-      const rawQ = document.getElementById("unifiedInput").value.trim();
+      const q = document.getElementById("unifiedInput").value.trim();
       const clearBtn = document.getElementById("clearUnifiedBtn");
-      if (rawQ) clearBtn.classList.remove("hidden");
+      if (q) clearBtn.classList.remove("hidden");
       else clearBtn.classList.add("hidden");
 
-      if (!rawQ) {
+      if (!q) {
         baseCoords = null;
         document.getElementById("baseCoordInfo").classList.add("hidden");
         applyFilters();
         return;
       }
 
-      // 全角英数字・ハイフン・空白を正規化
-      const q = rawQ
-        .normalize("NFKC")
-        .replace(/[‐‑‒–—―ー−]/g, "-")
-        .replace(/\s+/g, " ")
-        .trim();
-
       showToast("地点を検索中...");
 
       try {
-        // 1. 駅名検索（「駅」を含む、または住所特有の文字がない場合）
-        if (q.endsWith("駅") || !/[0-9丁目番地号都道府県市区町村]/.test(q)) {
-          const stName = q.replace(/駅.*$/, "").trim();
-          if (stName) {
-            const hrRes = await fetch(`https://express.heartrails.com/api/json?method=getStations&name=${encodeURIComponent(stName)}`);
-            if (hrRes.ok) {
-              const hrData = await hrRes.json();
-              if (hrData.response && hrData.response.station && hrData.response.station.length > 0) {
-                const st = hrData.response.station[0];
-                setBaseLocation(parseFloat(st.y), parseFloat(st.x), `${st.name}駅（${st.prefecture} / ${st.line}）`);
-                return;
-              }
+        // 1. 駅名検索（末尾が「駅」、または住所特有の文字がない場合）
+        if (q.endsWith("駅") || !/[0-9０-９丁目番地号都道府県市区町村]/.test(q)) {
+          const stName = q.replace(/駅$/, "");
+          const hrRes = await fetch(`https://express.heartrails.com/api/json?method=getStations&name=${encodeURIComponent(stName)}`);
+          if (hrRes.ok) {
+            const hrData = await hrRes.json();
+            if (hrData.response && hrData.response.station && hrData.response.station.length > 0) {
+              const st = hrData.response.station[0];
+              setBaseLocation(parseFloat(st.y), parseFloat(st.x), `${st.name}駅（${st.prefecture} / ${st.line}）`);
+              return;
             }
           }
         }
 
-        // 2. 国土地理院 住所検索API（建物名付きでもヒットするよう段階的にクエリを短縮して試行）
-        const gsiCandidates = [q];
-        // 空白以降の建物名・マンション名を削ったパターン
-        if (q.includes(" ")) gsiCandidates.push(q.split(" ")[0]);
-        // 番地（数字-数字）の後ろにくっついた建物名を削ったパターン（例: 東京都新宿区西新宿2-8-1都庁 -> 東京都新宿区西新宿2-8-1）
-        const banchiTrimmed = q.replace(/^(.+?\d+(?:-\d+)*)[^\d\-].*$/, "$1");
-        if (banchiTrimmed && !gsiCandidates.includes(banchiTrimmed)) gsiCandidates.push(banchiTrimmed);
-        // 町丁目まで（数字以降を削ったパターン）
-        const townOnly = q.replace(/[0-9\-]+.*$/, "").trim();
-        if (townOnly.length >= 3 && !gsiCandidates.includes(townOnly)) gsiCandidates.push(townOnly);
-
-        for (const cand of gsiCandidates) {
-          const gsiRes = await fetch(`https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(cand)}`);
-          if (gsiRes.ok) {
-            const gsiData = await gsiRes.json();
-            if (Array.isArray(gsiData) && gsiData.length > 0) {
-              const coords = gsiData[0].geometry.coordinates;
-              const title = gsiData[0].properties.title || cand;
-              setBaseLocation(coords[1], coords[0], `${title}`);
-              return;
-            }
+        // 2. 国土地理院 住所検索API（ピンポイント座標を最優先取得）
+        const gsiRes = await fetch(`https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(q)}`);
+        if (gsiRes.ok) {
+          const gsiData = await gsiRes.json();
+          if (Array.isArray(gsiData) && gsiData.length > 0) {
+            const coords = gsiData[0].geometry.coordinates;
+            const title = gsiData[0].properties.title || q;
+            setBaseLocation(coords[1], coords[0], `${title}`);
+            return;
           }
         }
       } catch (err) {
         console.warn("外部ジオコーディングエラー:", err);
       }
 
-      // 3. フォールバック：ローカル町丁目辞書から検索（都道府県名が省略されていても全47都道府県から自動照合）
+      // 3. フォールバック：ローカル町丁目辞書から検索
       await ensureCoordsDictLoaded();
-      const dictPrefs = Object.keys(TOWN_COORDS_DICT);
-      // まず都道府県名が含まれる場合を優先
-      const matchedPrefs = dictPrefs.filter(p => q.includes(p));
-      const searchOrderPrefs = matchedPrefs.length > 0 ? matchedPrefs : dictPrefs;
-
-      for (const pref of searchOrderPrefs) {
-        const found = lookupCoordsFromDict(pref, "", q);
-        if (found) {
-          setBaseLocation(found.lat, found.lng, `${rawQ}（辞書照合: ${found.matchedTown}）`);
-          return;
+      for (const pref of Object.keys(TOWN_COORDS_DICT)) {
+        if (q.includes(pref)) {
+          const found = lookupCoordsFromDict(pref, "", q);
+          if (found) {
+            setBaseLocation(found.lat, found.lng, `${q}（辞書照合: ${found.matchedTown}）`);
+            return;
+          }
         }
       }
 
-      showToast("地点が見つかりませんでした。市区町村名や駅名を含めてお試しください。");
+      showToast("地点が見つかりませんでした。都道府県や駅名を含めてお試しください。");
     }
 
     function setBaseLocation(lat, lng, label) {
@@ -1731,9 +1683,7 @@
               console.error("JSON読込エラー:", e);
             }
           }
-          allJobs = prepareJobsFast(allJobs.map((j, idx) => enrichJobData({ ...j, lat: null, lng: null }, idx)));
-          lastBaseCoordKey = "";
-          await idbSet("jobs_cache_v1", { tag: String(Date.now()), jobs: allJobs });
+          allJobs = allJobs.map((j, idx) => enrichJobData({ ...j, lat: null, lng: null }, idx));
           renderDictCoverage();
           applyFilters();
 
