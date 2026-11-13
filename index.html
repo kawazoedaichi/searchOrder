@@ -346,13 +346,24 @@
     const KANTO_PREFS = ["東京都", "神奈川県", "埼玉県", "千葉県", "茨城県", "栃木県", "群馬県"];
     const KANSAI_PREFS = ["大阪府", "兵庫県", "京都府", "滋賀県", "奈良県", "和歌山県"];
 
-    function normalizeTownStr(str) {
+    function kanjiChomeToNum(str) {
       if (!str) return "";
-      let s = str.replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
-      s = s.replace(/ヶ/g, "ケ").replace(/之/g, "ノ").replace(/ッ/g, "ツ");
-      const numMap = {"1":"一","2":"二","3":"三","4":"四","5":"五","6":"六","7":"七","8":"八","9":"九","10":"十"};
-      s = s.replace(/(\d+)丁目/g, (_, d) => (numMap[d] || d) + "丁目");
+      const digitMap = { "〇":"0", "一":"1", "二":"2", "三":"3", "四":"4", "五":"5", "六":"6", "七":"7", "八":"8", "九":"9" };
+      let s = str.normalize("NFKC")
+        .replace(/[‐‑‒–—―ー−]/g, "-")
+        .replace(/ヶ/g, "ケ").replace(/之/g, "ノ").replace(/ッ/g, "ツ");
+      // 漢数字の丁目をアラビア数字＋ハイフンへ統一（例: 梅田一丁目 -> 梅田1- / 十一丁目 -> 11-）
+      s = s.replace(/十([一二三四五六七八九])丁目/g, (_, d) => "1" + digitMap[d] + "-");
+      s = s.replace(/([二三四五六七八九])十([一二三四五六七八九])丁目/g, (_, d1, d2) => digitMap[d1] + digitMap[d2] + "-");
+      s = s.replace(/([二三四五六七八九])十丁目/g, (_, d) => digitMap[d] + "0-");
+      s = s.replace(/十丁目/g, "10-");
+      s = s.replace(/([一二三四五六七八九])丁目/g, (_, d) => digitMap[d] + "-");
+      s = s.replace(/(\d+)丁目/g, "$1-");
       return s;
+    }
+
+    function normalizeTownStr(str) {
+      return kanjiChomeToNum(str);
     }
 
     function lookupCoordsFromDict(pref, city, address) {
@@ -388,29 +399,51 @@
       const townsObj = prefObj[cityKey];
       const townKeys = Object.keys(townsObj).sort((a, b) => b.length - a.length);
 
-      let addrBody = (address || "").replace(pref, "").replace(cityKey, "").replace(city || "", "");
-      const normAddr = normalizeTownStr(addrBody);
+      let addrBody = (address || "").replace(pref, "").replace(cityKey, "").replace(city || "", "").trim();
+      // 辞書側（「梅田一丁目」->「梅田1-」）も住所側（「梅田1-1-3」->「梅田1-1-3」）もハイフン形式に統一して照合
+      const normAddr = kanjiChomeToNum(addrBody);
 
-      // 1. 完全部分一致（正規化含む）
+      // 1. ハイフン統一後の町丁目一致（例: 辞書「梅田一丁目」=>「梅田1-」が住所「梅田1-1-3」に完全一致）
       for (const t of townKeys) {
-        const normT = normalizeTownStr(t);
+        const normT = kanjiChomeToNum(t);
         if (addrBody.includes(t) || normAddr.includes(normT)) {
           return { lat: townsObj[t][0], lng: townsObj[t][1], matchedTown: `${pref}${cityKey}${t}` };
         }
       }
 
-      // 2. 「大字」「字」を除いた町名での一致
+      // 2. 「大字」「字」を除いた一致
       for (const t of townKeys) {
         const strippedT = t.replace(/^(大字|字)/, "");
         if (strippedT.length >= 2) {
-          const normStripped = normalizeTownStr(strippedT);
+          const normStripped = kanjiChomeToNum(strippedT);
           if (addrBody.includes(strippedT) || normAddr.includes(normStripped)) {
             return { lat: townsObj[t][0], lng: townsObj[t][1], matchedTown: `${pref}${cityKey}${t}` };
           }
         }
       }
 
-      // 3. 市区町村内の重心座標フォールバック
+      // 3. 丁目なしの町名ベース一致（例: 辞書に「〇〇一丁目〜三丁目」があり、住所が「〇〇」のみの場合、該当町名の全丁目平均を返す）
+      const addrBaseName = normAddr.replace(/[0-9\-]+.*$/, "").trim();
+      if (addrBaseName.length >= 2) {
+        const sameBaseTowns = townKeys.filter(t => {
+          const baseT = kanjiChomeToNum(t).replace(/^(大字|字)/, "").replace(/\d+-$/, "");
+          return baseT === addrBaseName;
+        });
+        if (sameBaseTowns.length > 0) {
+          let sLat = 0, sLng = 0;
+          for (const t of sameBaseTowns) {
+            sLat += townsObj[t][0];
+            sLng += townsObj[t][1];
+          }
+          return {
+            lat: Number((sLat / sameBaseTowns.length).toFixed(6)),
+            lng: Number((sLng / sameBaseTowns.length).toFixed(6)),
+            matchedTown: `${pref}${cityKey}${addrBaseName}`
+          };
+        }
+      }
+
+      // 4. 市区町村内の重心座標フォールバック
       if (townKeys.length > 0) {
         let sumLat = 0, sumLng = 0;
         for (const t of townKeys) {
@@ -663,7 +696,8 @@
 
     function isCoarsePrefFallback(j) {
       if (j.lat == null || j.lng == null || isNaN(j.lat) || isNaN(j.lng)) return true;
-      if (!j.matchedTown && j.pref && PREF_COORDS[j.pref]) {
+      if (!j.matchedTown || String(j.matchedTown).includes("市区町村中心")) return true;
+      if (j.pref && PREF_COORDS[j.pref]) {
         const [pLat, pLng] = PREF_COORDS[j.pref];
         if (Math.abs(j.lat - pLat) < 0.001 && Math.abs(j.lng - pLng) < 0.001) return true;
       }
@@ -893,7 +927,18 @@
             if (hrRes.ok) {
               const hrData = await hrRes.json();
               if (hrData.response && hrData.response.station && hrData.response.station.length > 0) {
-                const st = hrData.response.station[0];
+                const stations = hrData.response.station;
+                let st = stations[0];
+                if (currentPref !== "all") {
+                  const m = stations.find(s => s.prefecture === currentPref);
+                  if (m) st = m;
+                } else if (currentRegion === "関西") {
+                  const m = stations.find(s => KANSAI_PREFS.includes(s.prefecture));
+                  if (m) st = m;
+                } else if (currentRegion === "関東") {
+                  const m = stations.find(s => KANTO_PREFS.includes(s.prefecture));
+                  if (m) st = m;
+                }
                 setBaseLocation(parseFloat(st.y), parseFloat(st.x), `${st.name}駅（${st.prefecture} / ${st.line}）`);
                 return;
               }
@@ -917,8 +962,19 @@
           if (gsiRes.ok) {
             const gsiData = await gsiRes.json();
             if (Array.isArray(gsiData) && gsiData.length > 0) {
-              const coords = gsiData[0].geometry.coordinates;
-              const title = gsiData[0].properties.title || cand;
+              let best = gsiData[0];
+              if (currentPref !== "all") {
+                const m = gsiData.find(item => (item.properties.title || "").startsWith(currentPref));
+                if (m) best = m;
+              } else if (currentRegion === "関西") {
+                const m = gsiData.find(item => KANSAI_PREFS.some(p => (item.properties.title || "").startsWith(p)));
+                if (m) best = m;
+              } else if (currentRegion === "関東") {
+                const m = gsiData.find(item => KANTO_PREFS.some(p => (item.properties.title || "").startsWith(p)));
+                if (m) best = m;
+              }
+              const coords = best.geometry.coordinates;
+              const title = best.properties.title || cand;
               setBaseLocation(coords[1], coords[0], `${title}`);
               return;
             }
@@ -931,9 +987,18 @@
       // 3. フォールバック：ローカル町丁目辞書から検索（都道府県名が省略されていても全47都道府県から自動照合）
       await ensureCoordsDictLoaded();
       const dictPrefs = Object.keys(TOWN_COORDS_DICT);
-      // まず都道府県名が含まれる場合を優先
+      // まず都道府県名が含まれる場合、次に現在選択中の都道府県・エリアを優先
       const matchedPrefs = dictPrefs.filter(p => q.includes(p));
-      const searchOrderPrefs = matchedPrefs.length > 0 ? matchedPrefs : dictPrefs;
+      let searchOrderPrefs = matchedPrefs.length > 0 ? matchedPrefs : dictPrefs;
+      if (matchedPrefs.length === 0) {
+        if (currentPref !== "all" && dictPrefs.includes(currentPref)) {
+          searchOrderPrefs = [currentPref, ...dictPrefs.filter(p => p !== currentPref)];
+        } else if (currentRegion === "関西") {
+          searchOrderPrefs = [...KANSAI_PREFS.filter(p => dictPrefs.includes(p)), ...dictPrefs.filter(p => !KANSAI_PREFS.includes(p))];
+        } else if (currentRegion === "関東") {
+          searchOrderPrefs = [...KANTO_PREFS.filter(p => dictPrefs.includes(p)), ...dictPrefs.filter(p => !KANTO_PREFS.includes(p))];
+        }
+      }
 
       for (const pref of searchOrderPrefs) {
         const found = lookupCoordsFromDict(pref, "", q);
