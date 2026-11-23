@@ -1334,7 +1334,7 @@
                   ${distBadge}
                   <span class="ml-auto text-[11px] text-gray-500 font-semibold">${escapeHtml(job._boDateText || (job._boDateText = formatBoDateDisplay(job.date, job.timestamp)))}</span>
                 </div>
-                <h2 class="text-sm sm:text-base font-extrabold text-gray-900 leading-snug mb-1">${escapeHtml(job.facility || "施設名未設定")}</h2>
+                <h2 class="text-sm sm:text-base font-extrabold text-gray-900 leading-snug mb-1 underline decoration-dotted decoration-gray-400 underline-offset-2 cursor-pointer" title="タップで施設名をコピー" onclick="event.stopPropagation(); copyFacilityName(this)">${escapeHtml(job.facility || "施設名未設定")}</h2>
                 <div class="text-xs text-gray-600 flex items-center gap-1.5 mb-2">
                   <i class="fa-solid fa-location-dot text-gray-400"></i>
                   <span>${escapeHtml(job._fullAddr || (job._fullAddr = formatFullAddress(job)))}</span>
@@ -1669,6 +1669,39 @@
       document.getElementById("toastMsg").textContent = msg;
       t.classList.remove("opacity-0");
       setTimeout(() => t.classList.add("opacity-0"), 2500);
+    }
+
+    // 施設名タップでコピー（2026-11-23 河添の要望）
+    function copyFacilityName(el) {
+      const text = (el && el.textContent ? el.textContent : "").trim();
+      if (!text || text === "施設名未設定") return;
+      const done = () => showToast("施設名をコピーしました");
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(done).catch(() => execCopyFacilityName(text, done));
+      } else {
+        execCopyFacilityName(text, done);
+      }
+    }
+
+    function execCopyFacilityName(text, done) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.top = "0";
+      ta.style.left = "0";
+      ta.style.width = "2em";
+      ta.style.height = "2em";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try {
+        if (document.execCommand("copy")) done();
+        else prompt("以下のテキストをコピーしてください（Ctrl+C / Cmd+C）:", text);
+      } catch (err) {
+        prompt("以下のテキストをコピーしてください（Ctrl+C / Cmd+C）:", text);
+      }
+      document.body.removeChild(ta);
     }
 
     // --- CSVアップロード＆GitHub自動更新機能 ---
