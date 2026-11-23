@@ -1338,6 +1338,7 @@
                 <div class="text-xs text-gray-600 flex items-center gap-1.5 mb-2">
                   <i class="fa-solid fa-location-dot text-gray-400"></i>
                   <span>${escapeHtml(job._fullAddr || (job._fullAddr = formatFullAddress(job)))}</span>
+                  <button type="button" class="flex-none px-2 py-1 rounded-md border border-gray-300 bg-white text-[11px] font-bold text-gray-700 cursor-pointer" onclick="event.stopPropagation(); copyJobAddress(this.previousElementSibling)">コピー</button>
                 </div>
                 <div class="flex flex-wrap items-center justify-between gap-2">
                   <div class="flex flex-wrap items-center gap-1">
@@ -1669,6 +1670,18 @@
       document.getElementById("toastMsg").textContent = msg;
       t.classList.remove("opacity-0");
       setTimeout(() => t.classList.add("opacity-0"), 2500);
+    }
+
+    // 住所コピーボタン（2026-11-24 河添の要望: 一発でコピーできる四角いボタン）
+    function copyJobAddress(el) {
+      const text = (el && el.textContent ? el.textContent : "").trim();
+      if (!text) return;
+      const done = () => showToast("住所をコピーしました");
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(done).catch(() => execCopyFacilityName(text, done));
+      } else {
+        execCopyFacilityName(text, done);
+      }
     }
 
     // 施設名タップでコピー（2026-11-23 河添の要望）
