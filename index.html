@@ -1745,7 +1745,15 @@
       showToast("GitHub設定を保存しました");
     }
     function loadGithubConfigToForm() {
-      const token = localStorage.getItem("gh_pat") || "";
+      // gh_patが未設定なら、同一オリジンのスタッフ管理アプリの設定から引き継ぐ（キカリと同じ仕組み・2026-11-24）
+      let token = localStorage.getItem("gh_pat") || "";
+      if (!token) {
+        try {
+          const staffRaw = localStorage.getItem("bstyle_staff_settings_v5");
+          const staffToken = staffRaw ? (JSON.parse(staffRaw).ghToken || "") : "";
+          if (staffToken) { token = String(staffToken).trim(); localStorage.setItem("gh_pat", token); }
+        } catch (e) {}
+      }
       const owner = localStorage.getItem("gh_owner") || "kawazoedaichi";
       const repo = localStorage.getItem("gh_repo") || "searchOrder";
       const tIn = document.getElementById("ghTokenInput");
@@ -1855,7 +1863,7 @@
             pct.textContent = "70%";
             bar.style.width = "70%";
             title.textContent = "座標辞書をGitHubへ保存中...";
-            const ok = await pushFileToGithub("coords_dict.json", TOWN_COORDS_DICT, token, "Webアプリ経由でcoords_dict.jsonを更新する");
+            const ok = await pushFileToGithubWithFallback("coords_dict.json", TOWN_COORDS_DICT, token, "Webアプリ経由でcoords_dict.jsonを更新する");
           await idbSet("coords_dict_cache", { tag: String(Date.now()), data: TOWN_COORDS_DICT });
             pct.textContent = "100%";
             bar.style.width = "100%";
@@ -1934,7 +1942,7 @@
             pct.textContent = "75%";
             bar.style.width = "75%";
             title.textContent = "座標辞書をGitHubへ保存中...";
-            const ok = await pushFileToGithub("coords_dict.json", TOWN_COORDS_DICT, token, "Webアプリ経由でcoords_dict.jsonを更新する");
+            const ok = await pushFileToGithubWithFallback("coords_dict.json", TOWN_COORDS_DICT, token, "Webアプリ経由でcoords_dict.jsonを更新する");
           await idbSet("coords_dict_cache", { tag: String(Date.now()), data: TOWN_COORDS_DICT });
             pct.textContent = "100%";
             bar.style.width = "100%";
@@ -2029,7 +2037,7 @@
 
         if (token) {
           title.textContent = "GitHubへ自動反映中...";
-          const ok = await pushFileToGithub("jobs.json", mergedJobs, token, "Webアプリ経由でjobs.jsonを再構築更新する");
+          const ok = await pushFileToGithubWithFallback("jobs.json", mergedJobs, token, "Webアプリ経由でjobs.jsonを再構築更新する");
           pct.textContent = "100%";
           bar.style.width = "100%";
           if (ok) {
@@ -2062,7 +2070,7 @@
       const token = localStorage.getItem("gh_pat");
       if (token) {
         showToast("GitHubのjobs.jsonを空にリセット中...");
-        const ok = await pushFileToGithub("jobs.json", [], token, "過去のjobs.jsonデータを全消去リセット");
+        const ok = await pushFileToGithubWithFallback("jobs.json", [], token, "過去のjobs.jsonデータを全消去リセット");
         if (ok) {
           showToast("GitHub上の過去データを完全に消去しました（0件）");
         } else {
@@ -2071,6 +2079,30 @@
       } else {
         showToast("画面上の過去データを全消去しました（0件）");
       }
+    }
+
+    // スタッフ管理アプリの設定からGitHubトークンを読む（同一オリジン localStorage）
+    function getStaffGithubToken() {
+      try {
+        const raw = localStorage.getItem("bstyle_staff_settings_v5");
+        if (!raw) return "";
+        const s = JSON.parse(raw);
+        return (s && s.ghToken) ? String(s.ghToken).trim() : "";
+      } catch (e) { return ""; }
+    }
+    // 保存に失敗したらスタッフ管理のトークンで再試行し、成功すればgh_patを差し替える
+    // （searchOrderのトークンが失効・権限不足で同期エラーになる問題への対処・2026-11-24）
+    async function pushFileToGithubWithFallback(path, jsonData, token, commitPrefix) {
+      const ok = await pushFileToGithub(path, jsonData, token, commitPrefix);
+      if (ok) return true;
+      const staffToken = getStaffGithubToken();
+      if (!staffToken || staffToken === (token || "").trim()) return false;
+      const ok2 = await pushFileToGithub(path, jsonData, staffToken, commitPrefix);
+      if (ok2) {
+        localStorage.setItem("gh_pat", staffToken);
+        loadGithubConfigToForm();
+      }
+      return ok2;
     }
 
     async function pushFileToGithub(path, jsonData, token, commitPrefix) {
