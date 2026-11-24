@@ -1334,7 +1334,10 @@
                   ${distBadge}
                   <span class="ml-auto text-[11px] text-gray-500 font-semibold">${escapeHtml(job._boDateText || (job._boDateText = formatBoDateDisplay(job.date, job.timestamp)))}</span>
                 </div>
-                <h2 class="text-sm sm:text-base font-extrabold text-gray-900 leading-snug mb-1 underline decoration-dotted decoration-gray-400 underline-offset-2 cursor-pointer" title="タップで施設名をコピー" onclick="event.stopPropagation(); copyFacilityName(this)">${escapeHtml(job.facility || "施設名未設定")}</h2>
+                <div class="flex items-start gap-1.5 mb-1">
+                  <h2 class="flex-1 min-w-0 text-sm sm:text-base font-extrabold text-gray-900 leading-snug underline decoration-dotted decoration-gray-400 underline-offset-2 cursor-pointer" title="タップで施設名をコピー" onclick="event.stopPropagation(); copyFacilityName(this)">${escapeHtml(job.facility || "施設名未設定")}</h2>
+                  <button type="button" class="flex-none px-2 py-1 rounded-md border border-gray-300 bg-white text-[11px] font-bold text-gray-700 cursor-pointer" onclick="event.stopPropagation(); copyFacilityName(this.previousElementSibling)">コピー</button>
+                </div>
                 <div class="text-xs text-gray-600 flex items-center gap-1.5 mb-2">
                   <i class="fa-solid fa-location-dot text-gray-400"></i>
                   <span>${escapeHtml(job._fullAddr || (job._fullAddr = formatFullAddress(job)))}</span>
