@@ -2106,43 +2106,25 @@
       return ok2;
     }
 
+    // Git Data API（blob/tree/commit/ref更新）で保存する。Contents API は jobs.json（約41MB）で
+    // 「HTTP 422 file is too large to be processed」を返すため使わない（2026-11-25 実測）。
+    // blob は 100MB まで可。失敗時は window.__lastGithubError に実際のHTTPステータスと
+    // GitHubのエラーメッセージを残す（画面の同期エラー表示で使う。トークン値は含めない）。
     async function pushFileToGithub(path, jsonData, token, commitPrefix) {
       const owner = (localStorage.getItem("gh_owner") || "kawazoedaichi").trim();
       const repo = (localStorage.getItem("gh_repo") || "searchOrder").trim();
       const cleanToken = (token || "").trim();
-      const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
-
+      const api = "https://api.github.com";
+      const authH = { Authorization: `token ${cleanToken}` };
+      const jsonH = { Authorization: `token ${cleanToken}`, "Content-Type": "application/json" };
+      const fail = async (step, res) => {
+        let ghMsg = "";
+        try { const ej = await res.json(); ghMsg = (ej && ej.message) ? String(ej.message).slice(0, 300) : ""; } catch (e) {}
+        window.__lastGithubError = { step, status: res.status, message: ghMsg, path };
+        console.error("GitHub保存失敗:", step, res.status, ghMsg);
+        return false;
+      };
       try {
-        let sha = null;
-        // 1. 通常のContents APIでsha取得を試行（1MB以下のファイル用）
-        const getRes = await fetch(apiUrl, {
-          headers: { Authorization: `token ${cleanToken}` },
-          cache: "no-store"
-        });
-        if (getRes.ok) {
-          const info = await getRes.json();
-          sha = info.sha;
-        } else if (getRes.status === 403 || getRes.status === 422) {
-          // 2. 1MB超のファイル（coords_dict.json等）はContents APIのGETが403になるため、Git Trees APIで親ディレクトリのshaを取得
-          const repoRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
-            headers: { Authorization: `token ${cleanToken}` },
-            cache: "no-store"
-          });
-          if (repoRes.ok) {
-            const repoInfo = await repoRes.json();
-            const branch = repoInfo.default_branch || "main";
-            const treeRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}`, {
-              headers: { Authorization: `token ${cleanToken}` },
-              cache: "no-store"
-            });
-            if (treeRes.ok) {
-              const treeData = await treeRes.json();
-              const entry = (treeData.tree || []).find(item => item.path === path);
-              if (entry) sha = entry.sha;
-            }
-          }
-        }
-
         const contentStr = JSON.stringify(jsonData);
         const bytes = new TextEncoder().encode(contentStr);
         let binary = "";
@@ -2151,27 +2133,50 @@
           binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
         }
         const encoded = btoa(binary);
-        const today = new Date().toISOString().slice(0, 10).replace(/-/g, "/");
-        const putRes = await fetch(apiUrl, {
-          method: "PUT",
-          headers: {
-            Authorization: `token ${cleanToken}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            message: `${commitPrefix} (${today})`,
-            content: encoded,
-            sha: sha || undefined
-          })
+
+        // 1. デフォルトブランチと現在のコミットを取得
+        const repoRes = await fetch(`${api}/repos/${owner}/${repo}`, { headers: authH, cache: "no-store" });
+        if (!repoRes.ok) return await fail("REPO", repoRes);
+        const branch = ((await repoRes.json()).default_branch) || "main";
+        const refRes = await fetch(`${api}/repos/${owner}/${repo}/git/ref/heads/${branch}`, { headers: authH, cache: "no-store" });
+        if (!refRes.ok) return await fail("REF", refRes);
+        const commitSha = (await refRes.json()).object.sha;
+        const commitRes = await fetch(`${api}/repos/${owner}/${repo}/git/commits/${commitSha}`, { headers: authH, cache: "no-store" });
+        if (!commitRes.ok) return await fail("COMMIT", commitRes);
+        const baseTreeSha = (await commitRes.json()).tree.sha;
+
+        // 2. blob作成
+        const blobRes = await fetch(`${api}/repos/${owner}/${repo}/git/blobs`, {
+          method: "POST", headers: jsonH,
+          body: JSON.stringify({ content: encoded, encoding: "base64" })
         });
-        if (!putRes.ok) {
-          // 診断用に実際のHTTPステータスとGitHubのエラーメッセージを保持する（画面の同期エラー表示で使う。トークン値は含めない）
-          let ghMsg = "";
-          try { const ej = await putRes.json(); ghMsg = (ej && ej.message) ? String(ej.message).slice(0, 300) : ""; } catch (e) {}
-          window.__lastGithubError = { step: "PUT", status: putRes.status, message: ghMsg, path };
-          console.error("GitHub保存失敗:", putRes.status, ghMsg);
-        }
-        return putRes.ok;
+        if (!blobRes.ok) return await fail("BLOB", blobRes);
+        const blobSha = (await blobRes.json()).sha;
+
+        // 3. ツリー作成（対象ファイルだけ差し替え、他は base_tree から継承）
+        const treeRes = await fetch(`${api}/repos/${owner}/${repo}/git/trees`, {
+          method: "POST", headers: jsonH,
+          body: JSON.stringify({ base_tree: baseTreeSha, tree: [{ path, mode: "100644", type: "blob", sha: blobSha }] })
+        });
+        if (!treeRes.ok) return await fail("TREE", treeRes);
+        const newTreeSha = (await treeRes.json()).sha;
+
+        // 4. コミット作成
+        const today = new Date().toISOString().slice(0, 10).replace(/-/g, "/");
+        const commit2Res = await fetch(`${api}/repos/${owner}/${repo}/git/commits`, {
+          method: "POST", headers: jsonH,
+          body: JSON.stringify({ message: `${commitPrefix} (${today})`, tree: newTreeSha, parents: [commitSha] })
+        });
+        if (!commit2Res.ok) return await fail("COMMIT2", commit2Res);
+        const newCommitSha = (await commit2Res.json()).sha;
+
+        // 5. ブランチ参照を更新
+        const refUpRes = await fetch(`${api}/repos/${owner}/${repo}/git/ref/heads/${branch}`, {
+          method: "PATCH", headers: jsonH,
+          body: JSON.stringify({ sha: newCommitSha })
+        });
+        if (!refUpRes.ok) return await fail("REFUP", refUpRes);
+        return true;
       } catch (e) {
         console.error("GitHub保存エラー:", e);
         window.__lastGithubError = { step: "FETCH", status: 0, message: String(e && e.message ? e.message : e).slice(0, 300), path };
