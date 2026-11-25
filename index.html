@@ -747,24 +747,65 @@
           applyFilters();
         }
 
-        // 2. バックグラウンドで jobs.json の更新チェック（変更時のみ再取得＆再計算）
-        const headRes = await fetch("./jobs.json", { method: "HEAD", cache: "no-cache" }).catch(() => null);
-        const remoteTag = headRes ? (headRes.headers.get("etag") || headRes.headers.get("last-modified") || "") : "";
-
-        if (!cachedJobs || !cachedJobs.jobs || (remoteTag && cachedJobs.tag !== remoteTag) || !remoteTag) {
-          const jobsRes = await fetch("./jobs.json", { cache: "no-cache" }).catch(() => null);
-          if (jobsRes && jobsRes.ok) {
-            const rawJobs = await jobsRes.json();
-            const needDict = rawJobs.some(j => isCoarsePrefFallback(j));
-            if (needDict) {
-              await ensureCoordsDictLoaded();
+        // 2. バックグラウンドで jobs データの更新チェック（変更時のみ再取得＆再計算）
+        //    優先：分割ファイル jobs_p0〜p7（8分割）。未整備なら旧 jobs.json 経路にフォールバック。
+        let loadedFromShards = false;
+        try {
+          const shardHeadList = await Promise.all(
+            Array.from({ length: JOB_SHARD_COUNT }, (_, i) => fetch(`./jobs_p${i}.json`, { method: "HEAD", cache: "no-cache" }).catch(() => null))
+          );
+          if (shardHeadList.every(r => r && r.ok)) {
+            const remoteShardTags = shardHeadList.map(r => (r.headers.get("etag") || r.headers.get("last-modified") || ""));
+            const cachedShardTags = (cachedJobs && cachedJobs.shardTags) || null;
+            const shardTagsChanged = !cachedShardTags || remoteShardTags.some((t, i) => t !== cachedShardTags[i]);
+            if (!shardTagsChanged && cachedJobs && cachedJobs.jobs && cachedJobs.jobs.length > 0) {
+              loadedFromShards = true; // キャッシュが最新
+            } else {
+              const shardResList = await Promise.all(
+                Array.from({ length: JOB_SHARD_COUNT }, (_, i) => fetch(`./jobs_p${i}.json`, { cache: "no-cache" }).catch(() => null))
+              );
+              if (shardResList.every(r => r && r.ok)) {
+                const shardArrays = await Promise.all(shardResList.map(r => r.json()));
+                const rawJobs = shardArrays.flat();
+                const needDict = rawJobs.some(j => isCoarsePrefFallback(j));
+                if (needDict) {
+                  await ensureCoordsDictLoaded();
+                }
+                allJobs = prepareJobsFast(rawJobs);
+                await idbSet("jobs_cache_v1", { tag: remoteShardTags.join("|"), shardTags: remoteShardTags, source: "shards", jobs: allJobs });
+                updateHeaderCounts();
+                renderPrefPills();
+                applyFilters();
+                loadedFromShards = true;
+              } else if (cachedJobs && cachedJobs.jobs && cachedJobs.jobs.length > 0) {
+                loadedFromShards = true; // 取得失敗時はキャッシュ表示を維持
+              }
             }
-            allJobs = prepareJobsFast(rawJobs);
-            const newTag = jobsRes.headers.get("etag") || jobsRes.headers.get("last-modified") || remoteTag;
-            await idbSet("jobs_cache_v1", { tag: newTag, jobs: allJobs });
-            updateHeaderCounts();
-            renderPrefPills();
-            applyFilters();
+          }
+        } catch (e) {
+          console.warn("分割ファイル読込エラー:", e);
+        }
+
+        if (!loadedFromShards) {
+          // 旧 jobs.json 経路（分割ファイル未整備時のフォールバック）
+          const headRes = await fetch("./jobs.json", { method: "HEAD", cache: "no-cache" }).catch(() => null);
+          const remoteTag = headRes ? (headRes.headers.get("etag") || headRes.headers.get("last-modified") || "") : "";
+
+          if (!cachedJobs || !cachedJobs.jobs || (remoteTag && cachedJobs.tag !== remoteTag) || !remoteTag) {
+            const jobsRes = await fetch("./jobs.json", { cache: "no-cache" }).catch(() => null);
+            if (jobsRes && jobsRes.ok) {
+              const rawJobs = await jobsRes.json();
+              const needDict = rawJobs.some(j => isCoarsePrefFallback(j));
+              if (needDict) {
+                await ensureCoordsDictLoaded();
+              }
+              allJobs = prepareJobsFast(rawJobs);
+              const newTag = jobsRes.headers.get("etag") || jobsRes.headers.get("last-modified") || remoteTag;
+              await idbSet("jobs_cache_v1", { tag: newTag, jobs: allJobs });
+              updateHeaderCounts();
+              renderPrefPills();
+              applyFilters();
+            }
           }
         }
 
@@ -2018,6 +2059,7 @@
         const modeEl = document.querySelector('input[name="importMode"]:checked');
         const mode = modeEl ? modeEl.value : "accumulate";
         const prevCount = allJobs.length;
+        const prevJobs = allJobs;
         const combinedRaw = (mode === "accumulate") ? [...allJobs, ...parsedJobs] : [...parsedJobs];
         const mergedJobs = mergeDuplicateJobs(combinedRaw);
         allJobs = prepareJobsFast(mergedJobs);
@@ -2037,7 +2079,7 @@
 
         if (token) {
           title.textContent = "GitHubへ自動反映中...";
-          const ok = await pushFileToGithubWithFallback("jobs.json", mergedJobs, token, "Webアプリ経由でjobs.jsonを再構築更新する");
+          const ok = await saveJobsSharded(allJobs, prevJobs, token);
           pct.textContent = "100%";
           bar.style.width = "100%";
           if (ok) {
@@ -2058,6 +2100,7 @@
 
     async function resetAllJobsData() {
       if (!confirm("過去の案件データ（jobs.json）をすべて消去して0件にリセットしますか？")) return;
+      const prevJobs = allJobs;
       allJobs = [];
       filteredJobs = [];
       idbSet("jobs_cache_v1", { tag: String(Date.now()), jobs: [] });
@@ -2070,8 +2113,10 @@
 
       const token = localStorage.getItem("gh_pat");
       if (token) {
-        showToast("GitHubのjobs.jsonを空にリセット中...");
-        const ok = await pushFileToGithubWithFallback("jobs.json", [], token, "過去のjobs.jsonデータを全消去リセット");
+        showToast("GitHubのjobsデータを空にリセット中...");
+        const ok = await saveJobsSharded([], prevJobs, token);
+        // 旧版アプリとの互換のため旧 jobs.json も空にする（失敗してもリセット自体は継続）
+        await pushFileToGithubWithFallback("jobs.json", [], token, "過去のjobs.jsonデータを全消去リセット");
         if (ok) {
           showToast("GitHub上の過去データを完全に消去しました（0件）");
         } else {
@@ -2080,6 +2125,36 @@
       } else {
         showToast("画面上の過去データを全消去しました（0件）");
       }
+    }
+
+    // jobs.json（約41MB）は GitHub API の1ファイル制限を超えて 422 になるため、
+    // 8分割ファイル jobs_p0.json〜jobs_p7.json で保存する（2026-11-25）。
+    // 分割キーは案件の統合キー（施設名＋住所＋職種＋雇用形態）で、統合後も安定する。
+    const JOB_SHARD_COUNT = 8;
+    function jobShardIndex(job) {
+      try {
+        const key = `${normalizeFacilityKey(job.facility)}__${normalizeAddressKey(formatFullAddress(job))}__${normalizeJobType(job.jobType)}__${normalizeEmpType(job.empType, "")}`;
+        let h = 5381;
+        for (let i = 0; i < key.length; i++) h = ((h << 5) + h + key.charCodeAt(i)) >>> 0;
+        return h % JOB_SHARD_COUNT;
+      } catch (e) { return 0; }
+    }
+    function splitJobsToShards(jobs) {
+      const shards = Array.from({ length: JOB_SHARD_COUNT }, () => []);
+      (jobs || []).forEach(j => { shards[jobShardIndex(j)].push(j); });
+      return shards;
+    }
+    // 変更のあった分割ファイルだけ GitHub へ保存する。途中で失敗したら false を返し残りは保存しない
+    // （次回ロード時は分割ファイルが不完全な場合があるため旧 jobs.json 経路にフォールバックし、次回同期で再保存される）。
+    async function saveJobsSharded(newJobs, prevJobs, token) {
+      const prevShards = splitJobsToShards(prevJobs);
+      const newShards = splitJobsToShards(newJobs);
+      for (let i = 0; i < JOB_SHARD_COUNT; i++) {
+        if (JSON.stringify(newShards[i]) === JSON.stringify(prevShards[i])) continue;
+        const ok = await pushFileToGithubWithFallback(`jobs_p${i}.json`, newShards[i], token, `Webアプリ経由でjobs_p${i}.jsonを更新する`);
+        if (!ok) return false;
+      }
+      return true;
     }
 
     // スタッフ管理アプリの設定からGitHubトークンを読む（同一オリジン localStorage）
