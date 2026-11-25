@@ -2045,7 +2045,8 @@
             detail.textContent = `全${mergedJobs.length}件（CSV ${parsedJobs.length}件から6区分ルールで再構築）をGitHubへ保存しました。`;
           } else {
             title.textContent = "GitHub同期エラー（画面には反映済み）";
-            detail.textContent = "トークン権限（repo）またはリポジトリ名を確認してください。";
+            const ge = window.__lastGithubError;
+            detail.textContent = ge ? `GitHub APIエラー: HTTP ${ge.status} ${ge.message || ""}（${ge.step} ${ge.path}）` : "トークン権限（repo）またはリポジトリ名を確認してください。";
           }
         } else {
           pct.textContent = "100%";
@@ -2163,9 +2164,17 @@
             sha: sha || undefined
           })
         });
+        if (!putRes.ok) {
+          // 診断用に実際のHTTPステータスとGitHubのエラーメッセージを保持する（画面の同期エラー表示で使う。トークン値は含めない）
+          let ghMsg = "";
+          try { const ej = await putRes.json(); ghMsg = (ej && ej.message) ? String(ej.message).slice(0, 300) : ""; } catch (e) {}
+          window.__lastGithubError = { step: "PUT", status: putRes.status, message: ghMsg, path };
+          console.error("GitHub保存失敗:", putRes.status, ghMsg);
+        }
         return putRes.ok;
       } catch (e) {
         console.error("GitHub保存エラー:", e);
+        window.__lastGithubError = { step: "FETCH", status: 0, message: String(e && e.message ? e.message : e).slice(0, 300), path };
         return false;
       }
     }
