@@ -2245,8 +2245,8 @@
         if (!commit2Res.ok) return await fail("COMMIT2", commit2Res);
         const newCommitSha = (await commit2Res.json()).sha;
 
-        // 5. ブランチ参照を更新
-        const refUpRes = await fetch(`${api}/repos/${owner}/${repo}/git/ref/heads/${branch}`, {
+        // 5. ブランチ参照を更新（※更新は /git/refs/（複数形）。取得の /git/ref/（単数形）とは別パス）
+        const refUpRes = await fetch(`${api}/repos/${owner}/${repo}/git/refs/heads/${branch}`, {
           method: "PATCH", headers: jsonH,
           body: JSON.stringify({ sha: newCommitSha })
         });
